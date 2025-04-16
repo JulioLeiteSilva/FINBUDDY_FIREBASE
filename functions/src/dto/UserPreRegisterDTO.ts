@@ -1,7 +1,6 @@
 import { UserStatus } from "../enums/UserStatus";
 
-export interface UserPreRegister {
-  id?: string;
+export interface UserPreRegisterDTO {
   name: string;
   email: string;
   status: UserStatus;
