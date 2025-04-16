@@ -1,8 +1,8 @@
 import { db } from "../config/firebase";
-import { User } from "../models/User";
+import { UserPreRegister } from "../models/UserPreRegister";
 
 export class UserRepository {
-  static async create(uid: string, data: User) {
+  static async createPreUser(uid: string, data: UserPreRegister) {
     await db.collection("users").doc(uid).set(data);
     return { id: uid, ...data };
   }

@@ -1,6 +1,7 @@
 import { UserStatus } from "./UserStatus";
 
-export interface User {
+export interface UserPreRegister {
+  id?: string;
   name: string;
   email: string;
   status: UserStatus;
