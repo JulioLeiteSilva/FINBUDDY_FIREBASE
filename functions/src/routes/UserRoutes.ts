@@ -63,6 +63,29 @@ export const userRoutes = {
     }
   }),
 
+  deactivateUser: functions.https.onCall(async (request) => {
+    const { auth } = request;
+
+    if (!auth?.uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "O usuário não está autenticado"
+      );
+    }
+
+    const uid = auth.uid;
+
+    try {
+      const result = await UserController.deactivateUser(uid);
+      return { message: "Usuário desativado com sucesso", user: result };
+    } catch (error) {
+      throw new functions.https.HttpsError(
+        "internal",
+        (error as Error).message
+      );
+    }
+  }),
+
   getUser: functions.https.onCall(async (request) => {
     const { auth } = request;
 

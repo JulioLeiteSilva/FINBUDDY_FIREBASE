@@ -26,4 +26,8 @@ export class UserController {
   static async getUser(uid: string) {
     return await UserService.getUserById(uid);
   }
+
+  static async deactivateUser(uid: string) {
+    return await UserService.deactivateUser(uid);
+  }
 }
