@@ -1,7 +1,6 @@
 import { TransactionFrequency } from "../enums/TransactionFrequency";
 
-export interface Transaction {
-  id: string;
+export interface TransactionRequestDTO {
   name: string;
   category: string;
   value: number;
