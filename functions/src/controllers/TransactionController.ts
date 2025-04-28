@@ -39,4 +39,12 @@ export class TransactionController {
   static async getAllTransactions(uid: string) {
     return await TransactionService.getAll(uid);
   }
+
+  static async deleteRecurringTransaction(uid: string, transactionId: string): Promise<void> {
+    if (!transactionId) {
+      throw new Error("ID da transação é obrigatório");
+    }
+
+    await TransactionService.deleteRecurringTransactions(uid, transactionId);
+  }
 }

@@ -69,4 +69,24 @@ export const TransactionRoutes = {
 
     return await TransactionController.getAllTransactions(auth.uid);
   }),
+
+  deleteRecurringTransaction: functions.https.onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth?.uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Usuário não autenticado"
+      );
+    }
+
+    if (!data?.transactionId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "ID da transação é obrigatório"
+      );
+    }
+
+    await TransactionController.deleteRecurringTransaction(auth.uid, data.transactionId);
+  }),
 };
