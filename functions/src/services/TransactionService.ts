@@ -19,9 +19,8 @@ export class TransactionService {
     uid: string,
     data: TransactionRequestDTO
   ): Promise<void> {
-
     await this.validateBankAccountExists(uid, data.bankAccountId);
-    
+
     if (!data.isRecurring) {
       const id = db
         .collection("users")
@@ -105,6 +104,8 @@ export class TransactionService {
     if (!transaction) {
       throw new Error("Transação não encontrada");
     }
+
+    const newBankAccountId = data.bankAccountId;
     await this.validateBankAccountExists(uid, data.bankAccountId!);
 
     const oldIsPaid = transaction.isPaid;
@@ -113,26 +114,95 @@ export class TransactionService {
     const oldValue = transaction.value;
     const newValue = data.value ?? oldValue;
 
+    const oldBankAccountId = transaction.bankAccountId;
+    const bankAccountChanged = newBankAccountId !== oldBankAccountId;
+    
+    const updateData = {
+      ...data,
+      date: data.date ? dayjs(data.date).toDate() : undefined,
+      startDate: data.startDate ? dayjs(data.startDate).toDate() : undefined,
+      endDate: data.endDate ? dayjs(data.endDate).toDate() : undefined,
+    };
+
     await TransactionRepository.update(uid, transactionId, data);
 
     if (oldIsPaid && !newIsPaid) {
       // Era pago, virou não pago -> REVERTE o saldo
-      await this.adjustBankAccountBalance(uid, transaction.bankAccountId, oldValue, transaction.type, false);
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        oldValue,
+        transaction.type,
+        false
+      );
     }
-  
+
     if (!oldIsPaid && newIsPaid) {
       // Era não pago, virou pago -> APLICA o saldo
-      await this.adjustBankAccountBalance(uid, transaction.bankAccountId, newValue, transaction.type, true);
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        newValue,
+        transaction.type,
+        true
+      );
     }
-  
+
     if (oldIsPaid && newIsPaid && oldValue !== newValue) {
       // Continua pago, mas o valor mudou -> REVERTE saldo antigo e aplica saldo novo
-      await this.adjustBankAccountBalance(uid, transaction.bankAccountId, oldValue, transaction.type, false);
-      await this.adjustBankAccountBalance(uid, transaction.bankAccountId, newValue, transaction.type, true);
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        oldValue,
+        transaction.type,
+        false
+      );
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        newValue,
+        transaction.type,
+        true
+      );
+    }
+
+    if (transaction.isPaid && bankAccountChanged) {
+      await this.adjustBankAccountBalance(
+        uid,
+        oldBankAccountId,
+        oldValue,
+        transaction.type,
+        false
+      );
+      await this.adjustBankAccountBalance(
+        uid,
+        newBankAccountId!,
+        newValue,
+        transaction.type,
+        true
+      );
     }
   }
 
   static async delete(uid: string, transactionId: string): Promise<void> {
+
+    const transaction = await TransactionRepository.get(uid, transactionId);
+    if (!transaction) {
+      throw new Error("Transação não encontrada");
+    }
+
+    
+  
+    
+    if (transaction.isPaid) {
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        transaction.value,
+        transaction.type,
+        false
+      );
+    }
     await TransactionRepository.delete(uid, transactionId);
   }
 
@@ -150,7 +220,7 @@ export class TransactionService {
     if (!transaction) {
       throw new Error("Transação não encontrada");
     }
-    
+
     await this.validateBankAccountExists(uid, transaction.bankAccountId);
 
     const oldIsPaid = transaction.isPaid;
@@ -176,15 +246,13 @@ export class TransactionService {
     if (!transaction) {
       throw new Error("Transação não encontrada");
     }
-  
+
     if (!transaction.isRecurring) {
       throw new Error("A transação não é recorrente");
     }
-  
+
     await TransactionRepository.deleteRecurring(uid, transaction);
   }
-
-
 
   private static calculateNextDate(
     currentDate: dayjs.Dayjs,
@@ -222,8 +290,6 @@ export class TransactionService {
     }
 
     const bankAccount = await BankAccountService.get(uid, bankAccountId);
-    
-   
 
     let newBalance = bankAccount!.balance;
 
@@ -238,11 +304,13 @@ export class TransactionService {
     });
   }
 
-  private static async validateBankAccountExists(uid: string, bankAccountId: string): Promise<void> {
+  private static async validateBankAccountExists(
+    uid: string,
+    bankAccountId: string
+  ): Promise<void> {
     const bankAccount = await BankAccountService.get(uid, bankAccountId);
     if (!bankAccount) {
       throw new Error("Conta bancária não encontrada");
     }
   }
-
 }
