@@ -99,6 +99,13 @@ export class TransactionService {
     transactionId: string,
     data: Partial<TransactionRequestDTO>
   ): Promise<void> {
+
+    function removeUndefinedFields(obj: Record<string, any>) {
+      return Object.fromEntries(
+        Object.entries(obj).filter(([_, v]) => v !== undefined)
+      );
+    }
+
     const transaction = await TransactionRepository.get(uid, transactionId);
 
     if (!transaction) {
@@ -117,14 +124,16 @@ export class TransactionService {
     const oldBankAccountId = transaction.bankAccountId;
     const bankAccountChanged = newBankAccountId !== oldBankAccountId;
     
-    const updateData = {
+    const updateDataRaw = {
       ...data,
       date: data.date ? dayjs(data.date).toDate() : undefined,
       startDate: data.startDate ? dayjs(data.startDate).toDate() : undefined,
       endDate: data.endDate ? dayjs(data.endDate).toDate() : undefined,
     };
 
-    await TransactionRepository.update(uid, transactionId, data);
+    const updateData = removeUndefinedFields(updateDataRaw);
+    
+    await TransactionRepository.update(uid, transactionId, updateData);
 
     if (oldIsPaid && !newIsPaid) {
       // Era pago, virou não pago -> REVERTE o saldo
@@ -220,7 +229,7 @@ export class TransactionService {
     if (!transaction) {
       throw new Error("Transação não encontrada");
     }
-
+    
     await this.validateBankAccountExists(uid, transaction.bankAccountId);
 
     const oldIsPaid = transaction.isPaid;
@@ -304,6 +313,7 @@ export class TransactionService {
     });
   }
 
+  
   private static async validateBankAccountExists(
     uid: string,
     bankAccountId: string
