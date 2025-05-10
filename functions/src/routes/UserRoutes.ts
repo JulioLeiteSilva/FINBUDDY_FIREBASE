@@ -3,6 +3,7 @@ import { UserController } from "../controllers/UserController";
 import { CompleteUserProfileDTO } from "../dto/CompleteUserProfileDTO";
 import { UserPreRegisterDTO } from "../dto/UserPreRegisterDTO";
 import { UserStatus } from "../enums/UserStatus";
+import { throwHttpsError } from "../utils/errorHandler";
 
 export const userRoutes = {
   preRegisterUser: functions.https.onCall(async (request) => {
@@ -30,10 +31,7 @@ export const userRoutes = {
       const user = await UserController.preRegisterUser(dto, uid);
       return { message: "Usuário criado com sucesso", user };
     } catch (error) {
-      throw new functions.https.HttpsError(
-        "internal",
-        (error as Error).message
-      );
+      return throwHttpsError(error as Error);
     }
   }),
 
@@ -56,10 +54,7 @@ export const userRoutes = {
       );
       return { message: "Cadastro completo com sucesso", user: result };
     } catch (error) {
-      throw new functions.https.HttpsError(
-        "internal",
-        (error as Error).message
-      );
+      return throwHttpsError(error as Error);
     }
   }),
 

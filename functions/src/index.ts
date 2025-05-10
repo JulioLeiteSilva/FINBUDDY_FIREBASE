@@ -2,7 +2,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { userRoutes } from "./routes/UserRoutes";
 import { bankAccountRoutes } from "./routes/BankAccountRoutes";
-import { TransactionRoutes } from "./routes/TransctionRoutes";
+import { TransactionRoutes } from "./routes/TransactionRoutes";
 
 // Exporta todas as funções agrupadas sob o namespace `user`
 export const user = userRoutes;
