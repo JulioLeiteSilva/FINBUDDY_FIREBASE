@@ -1,14 +1,34 @@
+import { z } from "zod";
 import { BankAccountService } from "../services/BankAccountService";
-import { CreateBankAccountDTO } from "../dto/CreateBankAccountDTO";
-import { UpdateBankAccountDTO } from "../dto/UpdateBankAccountDTO";
-import { UpdateBankAccountBalanceDTO } from "../dto/UpdateBankAccountBalanceDTO";
+import {
+  CreateBankAccountDTO,
+  CreateBankAccountSchema,
+} from "../dto/CreateBankAccountDTO";
+import {
+  UpdateBankAccountDTO,
+  UpdateBankAccountSchema,
+} from "../dto/UpdateBankAccountDTO";
+import {
+  UpdateBankAccountBalanceDTO,
+  UpdateBankAccountBalanceSchema,
+} from "../dto/UpdateBankAccountBalanceDTO";
 
 export class BankAccountController {
   static async create(uid: string, data: CreateBankAccountDTO) {
-    if (!data.name || !data.type || !data.bank || !data.currency) {
-      throw new Error("Todos os campos obrigatórios devem ser preenchidos");
+    try {
+      // Validate incoming data against schema
+      const validatedData = CreateBankAccountSchema.parse(data);
+      return await BankAccountService.create(uid, validatedData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
     }
-    return await BankAccountService.create(uid, data);
   }
 
   static async update(
@@ -17,7 +37,20 @@ export class BankAccountController {
     data: UpdateBankAccountDTO
   ) {
     if (!accountId) throw new Error("ID da conta é obrigatório");
-    return await BankAccountService.update(uid, accountId, data);
+
+    try {
+      const validatedData = UpdateBankAccountSchema.parse(data);
+      return await BankAccountService.update(uid, accountId, validatedData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
+    }
   }
 
   static async updateBalance(
@@ -25,10 +58,25 @@ export class BankAccountController {
     accountId: string,
     data: UpdateBankAccountBalanceDTO
   ) {
-    if (!accountId || data.balance === undefined) {
-      throw new Error("ID da conta e novo saldo são obrigatórios");
+    if (!accountId) throw new Error("ID da conta é obrigatório");
+
+    try {
+      const validatedData = UpdateBankAccountBalanceSchema.parse(data);
+      return await BankAccountService.updateBalance(
+        uid,
+        accountId,
+        validatedData
+      );
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
     }
-    return await BankAccountService.updateBalance(uid, accountId, data);
   }
 
   static async delete(uid: string, accountId: string) {

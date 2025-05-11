@@ -1,9 +1,18 @@
 import * as functions from "firebase-functions";
 
-export interface ValidationError {
+interface ValidationError {
   field: string;
   message: string;
 }
+
+type EntityType =
+  | "Conta bancária"
+  | "Usuário"
+  | "Transação"
+  | "Objetivo financeiro";
+
+const getNotFoundMessage = (entity: EntityType) =>
+  `${entity} não encontrado(a)`;
 
 export interface AppErrorResponse {
   code: "VALIDATION_ERROR" | "INTERNAL_ERROR" | "NOT_FOUND";
@@ -32,11 +41,35 @@ export const createErrorResponse = (
   };
 };
 
-export const throwHttpsError = (error: Error, defaultMessage?: string) => {
-  const errorResponse = createErrorResponse(error, defaultMessage);
-  throw new functions.https.HttpsError(
-    errorResponse.code === "VALIDATION_ERROR" ? "invalid-argument" : "internal",
-    errorResponse.message,
-    errorResponse.validationErrors
-  );
+export const throwHttpsError = (error: Error, entity?: EntityType) => {
+  // Handle validation errors
+  if (error.message.startsWith("Validation failed:")) {
+    const validationErrors = JSON.parse(
+      error.message.replace("Validation failed:", "")
+    );
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Dados inválidos fornecidos",
+      validationErrors
+    );
+  }
+
+  // Handle not found errors
+  if (entity && error.message.includes("não encontrado")) {
+    throw new functions.https.HttpsError(
+      "not-found",
+      getNotFoundMessage(entity)
+    );
+  }
+
+  // Handle concurrent updates
+  if (error.message.includes("FAILED_PRECONDITION")) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Operação não permitida. O recurso pode ter sido atualizado por outro usuário."
+    );
+  }
+
+  // Handle all other errors
+  throw new functions.https.HttpsError("internal", error.message);
 };

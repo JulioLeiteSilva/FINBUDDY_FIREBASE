@@ -19,7 +19,15 @@ export class BankAccountService {
     accountId: string,
     data: UpdateBankAccountDTO
   ) {
-    return await BankAccountRepository.update(uid, accountId, data);
+    try {
+      const result = await BankAccountRepository.update(uid, accountId, data);
+      if (!result) {
+        throw new Error("Erro ao atualizar conta bancária");
+      }
+      return result;
+    } catch (error) {
+      throw error;
+    }
   }
 
   static async updateBalance(
@@ -27,7 +35,15 @@ export class BankAccountService {
     accountId: string,
     data: UpdateBankAccountBalanceDTO
   ) {
-    return await BankAccountRepository.update(uid, accountId, data);
+    try {
+      const result = await BankAccountRepository.update(uid, accountId, data);
+      if (!result) {
+        throw new Error("Erro ao atualizar saldo da conta bancária");
+      }
+      return result;
+    } catch (error) {
+      throw error;
+    }
   }
 
   static async delete(uid: string, accountId: string) {
@@ -35,7 +51,15 @@ export class BankAccountService {
   }
 
   static async get(uid: string, accountId: string) {
-    return await BankAccountRepository.get(uid, accountId);
+    try {
+      const result = await BankAccountRepository.get(uid, accountId);
+      if (!result) {
+        throw new Error("Conta bancária não encontrada");
+      }
+      return result;
+    } catch (error) {
+      throw error;
+    }
   }
 
   static async getAll(uid: string) {
