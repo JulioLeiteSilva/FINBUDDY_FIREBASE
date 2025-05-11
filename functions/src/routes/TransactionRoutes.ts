@@ -1,9 +1,12 @@
 import * as functions from "firebase-functions";
 import { TransactionController } from "../controllers/TransactionController";
+import { throwHttpsError } from "../utils/errorHandler";
+import { TransactionRequestDTO } from "../dto/TransactionRequestDTO";
 
-export const TransactionRoutes = {
+export const transactionRoutes = {
   createTransaction: functions.https.onCall(async (request) => {
     const { auth, data } = request;
+
     if (!auth?.uid) {
       throw new functions.https.HttpsError(
         "unauthenticated",
@@ -11,11 +14,20 @@ export const TransactionRoutes = {
       );
     }
 
-    return await TransactionController.createTransaction(auth.uid, data);
+    try {
+      await TransactionController.createTransaction(
+        auth.uid,
+        data as TransactionRequestDTO
+      );
+      return { message: "Transação criada com sucesso" };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
   }),
 
   updateTransaction: functions.https.onCall(async (request) => {
     const { auth, data } = request;
+
     if (!auth?.uid) {
       throw new functions.https.HttpsError(
         "unauthenticated",
@@ -23,15 +35,21 @@ export const TransactionRoutes = {
       );
     }
 
-    return await TransactionController.updateTransaction(
-      auth.uid,
-      data.id,
-      data
-    );
+    try {
+      await TransactionController.updateTransaction(
+        auth.uid,
+        data.id,
+        data as TransactionRequestDTO
+      );
+      return { message: "Transação atualizada com sucesso" };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
   }),
 
   updateIsPaidTransaction: functions.https.onCall(async (request) => {
     const { auth, data } = request;
+
     if (!auth?.uid) {
       throw new functions.https.HttpsError(
         "unauthenticated",
@@ -39,15 +57,21 @@ export const TransactionRoutes = {
       );
     }
 
-    return await TransactionController.updateIsPaidTransaction(
-      auth.uid,
-      data.id,
-      data.isPaid
-    );
+    try {
+      await TransactionController.updateIsPaidTransaction(
+        auth.uid,
+        data.id,
+        data.isPaid
+      );
+      return { message: "Status de pagamento atualizado com sucesso" };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
   }),
 
   deleteTransaction: functions.https.onCall(async (request) => {
     const { auth, data } = request;
+
     if (!auth?.uid) {
       throw new functions.https.HttpsError(
         "unauthenticated",
@@ -55,11 +79,17 @@ export const TransactionRoutes = {
       );
     }
 
-    return await TransactionController.deleteTransaction(auth.uid, data.id);
+    try {
+      await TransactionController.deleteTransaction(auth.uid, data.id);
+      return { message: "Transação excluída com sucesso" };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
   }),
 
   getAllTransactions: functions.https.onCall(async (request) => {
     const { auth } = request;
+
     if (!auth?.uid) {
       throw new functions.https.HttpsError(
         "unauthenticated",
@@ -67,7 +97,14 @@ export const TransactionRoutes = {
       );
     }
 
-    return await TransactionController.getAllTransactions(auth.uid);
+    try {
+      const transactions = await TransactionController.getAllTransactions(
+        auth.uid
+      );
+      return { message: "Transações recuperadas com sucesso", transactions };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
   }),
 
   deleteRecurringTransaction: functions.https.onCall(async (request) => {
@@ -80,13 +117,11 @@ export const TransactionRoutes = {
       );
     }
 
-    if (!data?.transactionId) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "ID da transação é obrigatório"
-      );
+    try {
+      await TransactionController.deleteRecurringTransaction(auth.uid, data.id);
+      return { message: "Transações recorrentes excluídas com sucesso" };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
     }
-
-    await TransactionController.deleteRecurringTransaction(auth.uid, data.transactionId);
   }),
 };

@@ -15,6 +15,35 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 export class TransactionService {
+  // Add standardized error messages
+  private static readonly ERROR_MESSAGES = {
+    TRANSACTION_NOT_FOUND: "não encontrado",
+    BANK_ACCOUNT_NOT_FOUND: "não encontrado",
+    NEGATIVE_VALUE: "O valor da transação não pode ser negativo",
+    NOT_RECURRING: "A transação não é recorrente",
+    INVALID_FREQUENCY: (frequency: string) =>
+      `Frequência inválida para recorrência: ${frequency}`,
+  };
+
+  private static readonly TIMEZONE = "America/Sao_Paulo";
+
+  private static formatDate(date: string | Date): Date {
+    return dayjs.tz(date, this.TIMEZONE).toDate();
+  }
+
+  // Add input validation
+  private static validateTransactionValue(value: number): void {
+    if (value < 0) {
+      throw new Error(this.ERROR_MESSAGES.NEGATIVE_VALUE);
+    }
+  }
+
+  private static validateRecurringTransaction(transaction: Transaction): void {
+    if (!transaction.isRecurring) {
+      throw new Error(this.ERROR_MESSAGES.NOT_RECURRING);
+    }
+  }
+
   static async createTransaction(
     uid: string,
     data: TransactionRequestDTO
@@ -27,13 +56,12 @@ export class TransactionService {
         .doc(uid)
         .collection("transactions")
         .doc().id;
-
       const transaction: Transaction = {
         id,
         name: data.name,
         category: data.category,
         value: data.value,
-        date: dayjs.utc(data.date).add(3, "hour").toDate(),
+        date: this.formatDate(data.date),
         type: data.type,
         isRecurring: data.isRecurring,
         isPaid: data.isPaid,
@@ -52,13 +80,12 @@ export class TransactionService {
           true
         );
       }
-
       return;
     }
 
     const transactions: Transaction[] = [];
-    let currentDate: dayjs.Dayjs = dayjs.utc(data.startDate);
-    const endDate: dayjs.Dayjs = dayjs.utc(data.endDate);
+    let currentDate: dayjs.Dayjs = dayjs.utc(data.startDate, this.TIMEZONE);
+    const endDate: dayjs.Dayjs = dayjs.utc(data.endDate, this.TIMEZONE);
 
     while (currentDate.isSameOrBefore(endDate, "day")) {
       const id = db
@@ -68,12 +95,19 @@ export class TransactionService {
         .doc().id;
 
       const transaction: Transaction = {
-        ...data,
         id,
-        date: currentDate.add(3, "hour").toDate(),
-        startDate: currentDate.add(3, "hour").toDate(),
-        endDate: endDate.add(3, "hour").toDate(),
+        name: data.name,
+        category: data.category,
+        value: data.value,
+        type: data.type,
+        date: currentDate.toDate(),
+        startDate: currentDate.toDate(),
+        endDate: endDate.toDate(),
+        isRecurring: data.isRecurring,
+        frequency: data.frequency || undefined,
         isPaid: transactions.length === 0 ? data.isPaid : false,
+        currency: data.currency,
+        bankAccountId: data.bankAccountId,
       };
 
       transactions.push(transaction);
@@ -99,110 +133,20 @@ export class TransactionService {
     transactionId: string,
     data: Partial<TransactionRequestDTO>
   ): Promise<void> {
-
-    function removeUndefinedFields(obj: Record<string, any>) {
-      return Object.fromEntries(
-        Object.entries(obj).filter(([_, v]) => v !== undefined)
-      );
-    }
-
     const transaction = await TransactionRepository.get(uid, transactionId);
-
     if (!transaction) {
-      throw new Error("Transação não encontrada");
+      throw new Error("não encontrado");
     }
 
-    const newBankAccountId = data.bankAccountId;
-    await this.validateBankAccountExists(uid, data.bankAccountId!);
-
-    const oldIsPaid = transaction.isPaid;
-    const newIsPaid = data.isPaid ?? oldIsPaid;
-
-    const oldValue = transaction.value;
-    const newValue = data.value ?? oldValue;
-
-    const oldBankAccountId = transaction.bankAccountId;
-    const bankAccountChanged = newBankAccountId !== oldBankAccountId;
-    
-    const updateDataRaw = {
-      ...data,
-      date: data.date ? dayjs(data.date).toDate() : undefined,
-      startDate: data.startDate ? dayjs(data.startDate).toDate() : undefined,
-      endDate: data.endDate ? dayjs(data.endDate).toDate() : undefined,
-    };
-
-    const updateData = removeUndefinedFields(updateDataRaw);
-    
-    await TransactionRepository.update(uid, transactionId, updateData);
-
-    if (oldIsPaid && !newIsPaid) {
-      // Era pago, virou não pago -> REVERTE o saldo
-      await this.adjustBankAccountBalance(
-        uid,
-        transaction.bankAccountId,
-        oldValue,
-        transaction.type,
-        false
-      );
-    }
-
-    if (!oldIsPaid && newIsPaid) {
-      // Era não pago, virou pago -> APLICA o saldo
-      await this.adjustBankAccountBalance(
-        uid,
-        transaction.bankAccountId,
-        newValue,
-        transaction.type,
-        true
-      );
-    }
-
-    if (oldIsPaid && newIsPaid && oldValue !== newValue) {
-      // Continua pago, mas o valor mudou -> REVERTE saldo antigo e aplica saldo novo
-      await this.adjustBankAccountBalance(
-        uid,
-        transaction.bankAccountId,
-        oldValue,
-        transaction.type,
-        false
-      );
-      await this.adjustBankAccountBalance(
-        uid,
-        transaction.bankAccountId,
-        newValue,
-        transaction.type,
-        true
-      );
-    }
-
-    if (transaction.isPaid && bankAccountChanged) {
-      await this.adjustBankAccountBalance(
-        uid,
-        oldBankAccountId,
-        oldValue,
-        transaction.type,
-        false
-      );
-      await this.adjustBankAccountBalance(
-        uid,
-        newBankAccountId!,
-        newValue,
-        transaction.type,
-        true
-      );
-    }
+    await TransactionRepository.update(uid, transactionId, data);
   }
 
   static async delete(uid: string, transactionId: string): Promise<void> {
-
     const transaction = await TransactionRepository.get(uid, transactionId);
     if (!transaction) {
       throw new Error("Transação não encontrada");
     }
 
-    
-  
-    
     if (transaction.isPaid) {
       await this.adjustBankAccountBalance(
         uid,
@@ -225,26 +169,19 @@ export class TransactionService {
     isPaid: boolean
   ): Promise<void> {
     const transaction = await TransactionRepository.get(uid, transactionId);
-
     if (!transaction) {
-      throw new Error("Transação não encontrada");
+      throw new Error("não encontrado");
     }
-    
-    await this.validateBankAccountExists(uid, transaction.bankAccountId);
 
-    const oldIsPaid = transaction.isPaid;
+    await this.adjustBankAccountBalance(
+      uid,
+      transaction.bankAccountId,
+      transaction.value,
+      transaction.type,
+      isPaid
+    );
 
     await TransactionRepository.update(uid, transactionId, { isPaid });
-
-    if (oldIsPaid !== isPaid) {
-      await this.adjustBankAccountBalance(
-        uid,
-        transaction.bankAccountId,
-        transaction.value,
-        transaction.type,
-        isPaid
-      );
-    }
   }
 
   static async deleteRecurringTransactions(
@@ -256,9 +193,7 @@ export class TransactionService {
       throw new Error("Transação não encontrada");
     }
 
-    if (!transaction.isRecurring) {
-      throw new Error("A transação não é recorrente");
-    }
+    this.validateRecurringTransaction(transaction);
 
     await TransactionRepository.deleteRecurring(uid, transaction);
   }
@@ -267,24 +202,39 @@ export class TransactionService {
     currentDate: dayjs.Dayjs,
     frequency: TransactionFrequency
   ): dayjs.Dayjs {
-    switch (frequency) {
-      case "WEEKLY":
-        return currentDate.add(1, "week");
-      case "BIWEEKLY":
-        return currentDate.add(2, "week");
-      case "MONTHLY":
-        return currentDate.add(1, "month");
-      case "BIMONTHLY":
-        return currentDate.add(2, "month");
-      case "QUARTERLY":
-        return currentDate.add(3, "month");
-      case "SEMIANNUALLY":
-        return currentDate.add(6, "month");
-      case "ANNUALLY":
-        return currentDate.add(1, "year");
-      default:
-        throw new Error(`Frequência inválida para recorrência: ${frequency}`);
+    const frequencyMap: Record<
+      TransactionFrequency,
+      [number, dayjs.ManipulateType]
+    > = {
+      WEEKLY: [1, "week"],
+      BIWEEKLY: [2, "week"],
+      MONTHLY: [1, "month"],
+      BIMONTHLY: [2, "month"],
+      QUARTERLY: [3, "month"],
+      SEMIANNUALLY: [6, "month"],
+      ANNUALLY: [1, "year"],
+    };
+
+    const [amount, unit] = frequencyMap[frequency] || [];
+    if (!amount || !unit) {
+      throw new Error(this.ERROR_MESSAGES.INVALID_FREQUENCY(frequency));
     }
+
+    return currentDate.add(amount, unit);
+  }
+
+  private static calculateNewBalance(
+    currentBalance: number,
+    value: number,
+    type: "INCOME" | "EXPENSE",
+    isAdding: boolean
+  ): number {
+    this.validateTransactionValue(value);
+
+    const multiplier = type === "INCOME" ? 1 : -1;
+    const operation = isAdding ? 1 : -1;
+
+    return currentBalance + value * multiplier * operation;
   }
 
   private static async adjustBankAccountBalance(
@@ -294,33 +244,30 @@ export class TransactionService {
     type: "INCOME" | "EXPENSE",
     isAdding: boolean
   ): Promise<void> {
-    if (value < 0) {
-      throw new Error("O valor da transação não pode ser negativo");
-    }
-
     const bankAccount = await BankAccountService.get(uid, bankAccountId);
-
-    let newBalance = bankAccount!.balance;
-
-    if (type === "INCOME") {
-      newBalance = isAdding ? newBalance + value : newBalance - value;
-    } else if (type === "EXPENSE") {
-      newBalance = isAdding ? newBalance - value : newBalance + value;
+    if (!bankAccount) {
+      throw new Error(this.ERROR_MESSAGES.BANK_ACCOUNT_NOT_FOUND);
     }
+
+    const newBalance = this.calculateNewBalance(
+      bankAccount.balance,
+      value,
+      type,
+      isAdding
+    );
 
     await BankAccountService.updateBalance(uid, bankAccountId, {
       balance: newBalance,
     });
   }
 
-  
   private static async validateBankAccountExists(
     uid: string,
     bankAccountId: string
   ): Promise<void> {
     const bankAccount = await BankAccountService.get(uid, bankAccountId);
     if (!bankAccount) {
-      throw new Error("Conta bancária não encontrada");
+      throw new Error(this.ERROR_MESSAGES.BANK_ACCOUNT_NOT_FOUND);
     }
   }
 }

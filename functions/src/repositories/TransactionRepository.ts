@@ -6,7 +6,7 @@ export class TransactionRepository {
   static async createMany(
     uid: string,
     transactions: Transaction[]
-  ): Promise<void> {
+  ): Promise<Transaction[]> {
     const batch = db.batch();
 
     transactions.forEach((transaction) => {
@@ -20,22 +20,28 @@ export class TransactionRepository {
     });
 
     await batch.commit();
+    return transactions;
   }
 
   static async update(
     uid: string,
     transactionId: string,
     data: Partial<TransactionRequestDTO>
-  ): Promise<void> {
+  ): Promise<Transaction> {
     const ref = db
       .collection("users")
       .doc(uid)
       .collection("transactions")
       .doc(transactionId);
+
     const doc = await ref.get();
-    if (!doc.exists) return;
+    if (!doc.exists) {
+      throw new Error("não encontrado");
+    }
 
     await ref.update(data as { [key: string]: any });
+    const updatedDoc = await ref.get();
+    return updatedDoc.data() as Transaction;
   }
 
   static async delete(uid: string, transactionId: string): Promise<void> {

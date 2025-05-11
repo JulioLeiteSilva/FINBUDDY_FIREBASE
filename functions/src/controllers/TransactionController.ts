@@ -1,10 +1,25 @@
-import { TransactionRequestDTO } from "../dto/TransactionRequestDTO";
+import { z } from "zod";
+import {
+  TransactionRequestDTO,
+  TransactionRequestSchema,
+} from "../dto/TransactionRequestDTO";
 import { TransactionService } from "../services/TransactionService";
 
 export class TransactionController {
   static async createTransaction(uid: string, data: TransactionRequestDTO) {
-    const res = await TransactionService.createTransaction(uid, data);
-    console.log(res);
+    try {
+      const validatedData = TransactionRequestSchema.parse(data);
+      return await TransactionService.createTransaction(uid, validatedData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
+    }
   }
 
   static async updateTransaction(
@@ -12,10 +27,21 @@ export class TransactionController {
     transactionId: string,
     data: TransactionRequestDTO
   ) {
-    if (!uid) throw new Error("Uid do usuario é obrigatório");
-    if (!transactionId) throw new Error("ID da transação é obrigatório");
-    if (!data) throw new Error("informaçoes da transação é obrigatório");
-    await TransactionService.update(uid, transactionId, data);
+    if (!transactionId) throw new Error("não encontrado");
+
+    try {
+      const validatedData = TransactionRequestSchema.parse(data);
+      return await TransactionService.update(uid, transactionId, validatedData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
+    }
   }
 
   static async updateIsPaidTransaction(
@@ -23,28 +49,29 @@ export class TransactionController {
     transactionId: string,
     isPaid: boolean
   ) {
-    if (!uid) throw new Error("Uid do usuario é obrigatório");
-    if (!transactionId) throw new Error("ID da transação é obrigatório");
-    if (typeof isPaid !== "boolean")
-      throw new Error("O campo isPaid deve ser booleano");
-    
-    await TransactionService.updateIsPaid(uid, transactionId, isPaid);
+    if (!transactionId) throw new Error("não encontrado");
+
+    try {
+      return await TransactionService.updateIsPaid(uid, transactionId, isPaid);
+    } catch (error) {
+      throw error;
+    }
   }
 
   static async deleteTransaction(uid: string, transactionId: string) {
-    if (!uid) throw new Error("Uid do usuario é obrigatório");
-    if (!transactionId) throw new Error("ID da transação é obrigatório");
-    await TransactionService.delete(uid, transactionId);
+    if (!transactionId) throw new Error("não encontrado");
+    return await TransactionService.delete(uid, transactionId);
   }
+
   static async getAllTransactions(uid: string) {
     return await TransactionService.getAll(uid);
   }
 
-  static async deleteRecurringTransaction(uid: string, transactionId: string): Promise<void> {
-    if (!transactionId) {
-      throw new Error("ID da transação é obrigatório");
-    }
-
-    await TransactionService.deleteRecurringTransactions(uid, transactionId);
+  static async deleteRecurringTransaction(uid: string, transactionId: string) {
+    if (!transactionId) throw new Error("não encontrado");
+    return await TransactionService.deleteRecurringTransactions(
+      uid,
+      transactionId
+    );
   }
 }
