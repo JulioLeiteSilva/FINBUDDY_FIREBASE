@@ -12,7 +12,7 @@ export interface User {
   createdAt: Date;
   cellphone: string;
   address: string;
-  birthDate: Date;
+  birthDate: string;
   CPF: string;
   financialObjective: FinancialObjective; // Pode virar ENUM
   bankAccounts: BankAccount[];

@@ -4,6 +4,21 @@ import { UpdateBankAccountBalanceDTO } from "../dto/UpdateBankAccountBalanceDTO"
 import { UpdateBankAccountDTO } from "../dto/UpdateBankAccountDTO";
 
 export class BankAccountRepository {
+  private static async validateOwnership(uid: string, accountId: string) {
+    const doc = await db
+      .collection("users")
+      .doc(uid)
+      .collection("bankAccounts")
+      .doc(accountId)
+      .get();
+
+    if (!doc.exists) {
+      throw new Error("não encontrado");
+    }
+
+    return doc;
+  }
+
   static async create(
     uid: string,
     data: CreateBankAccountDTO & { id: string }
@@ -22,19 +37,13 @@ export class BankAccountRepository {
     accountId: string,
     data: UpdateBankAccountDTO | UpdateBankAccountBalanceDTO
   ) {
-    const ref = db
-      .collection("users")
-      .doc(uid)
-      .collection("bankAccounts")
-      .doc(accountId);
-    const doc = await ref.get();
-    if (!doc.exists) return null;
-
-    await ref.update(data as { [key: string]: any });
-    return (await ref.get()).data();
+    const doc = await this.validateOwnership(uid, accountId);
+    await doc.ref.update(data as { [key: string]: any });
+    return (await doc.ref.get()).data();
   }
 
   static async delete(uid: string, accountId: string) {
+    await this.validateOwnership(uid, accountId);
     const ref = db
       .collection("users")
       .doc(uid)
@@ -45,13 +54,8 @@ export class BankAccountRepository {
   }
 
   static async get(uid: string, accountId: string) {
-    const ref = db
-      .collection("users")
-      .doc(uid)
-      .collection("bankAccounts")
-      .doc(accountId);
-    const doc = await ref.get();
-    return doc.exists ? doc.data() : null;
+    const doc = await this.validateOwnership(uid, accountId);
+    return doc.data();
   }
 
   static async getAll(uid: string) {
