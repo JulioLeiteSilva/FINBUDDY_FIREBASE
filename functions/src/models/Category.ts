@@ -1,5 +1,6 @@
 export interface Category {
   name: string;
-  type: string;
-  iconId: string;
+  id: string;
+  icon: string;
+  type: "INCOME" | "EXPENSE";
 }
