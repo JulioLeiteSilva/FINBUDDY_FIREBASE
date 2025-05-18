@@ -5,6 +5,11 @@ import { GlobalCategoryController } from "../controllers/GlobalCategoryControlle
 export const globalCategoryRoutes = {
   seedCategoriesDefaults: functions.https.onCall(async () => {
     await GlobalCategoryController.seedDefaults();
-    return { message: "Categorias default criadas no Firestore (emulador) com sucesso." };
+    return { message: "Categorias default criadas com sucesso!" };
+  }),
+
+  getAllDefaultCategories: functions.https.onCall(async () => {
+    const categories = await GlobalCategoryController.getAllDefaults();
+    return categories;
   }),
 };
