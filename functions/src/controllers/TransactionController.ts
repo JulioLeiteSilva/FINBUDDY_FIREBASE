@@ -44,19 +44,6 @@ export class TransactionController {
     }
   }
 
-  static async updateIsPaidTransaction(
-    uid: string,
-    transactionId: string,
-    isPaid: boolean
-  ) {
-    if (!transactionId) throw new Error("não encontrado");
-
-    try {
-      return await TransactionService.updateIsPaid(uid, transactionId, isPaid);
-    } catch (error) {
-      throw error;
-    }
-  }
 
   static async deleteTransaction(uid: string, transactionId: string) {
     if (!transactionId) throw new Error("não encontrado");

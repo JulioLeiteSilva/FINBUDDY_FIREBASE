@@ -47,27 +47,6 @@ export const transactionRoutes = {
     }
   }),
 
-  updateIsPaidTransaction: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
-    }
-
-    try {
-      await TransactionController.updateIsPaidTransaction(
-        auth.uid,
-        data.id,
-        data.isPaid
-      );
-      return { message: "Status de pagamento atualizado com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
-    }
-  }),
 
   deleteTransaction: functions.https.onCall(async (request) => {
     const { auth, data } = request;

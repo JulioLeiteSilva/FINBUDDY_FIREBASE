@@ -23,6 +23,7 @@ export class TransactionService {
     NOT_RECURRING: "A transação não é recorrente",
     INVALID_FREQUENCY: (frequency: string) =>
       `Frequência inválida para recorrência: ${frequency}`,
+    CANT_EDIT_RECURRING: "não é possível editar transações recorrentes",
   };
 
   private static readonly TIMEZONE = "America/Sao_Paulo";
@@ -101,7 +102,7 @@ export class TransactionService {
         value: data.value,
         type: data.type,
         date: currentDate.toDate(),
-        startDate: currentDate.toDate(),
+        startDate: this.formatDate(data.startDate!),
         endDate: endDate.toDate(),
         isRecurring: data.isRecurring,
         frequency: data.frequency || undefined,
@@ -133,12 +134,100 @@ export class TransactionService {
     transactionId: string,
     data: Partial<TransactionRequestDTO>
   ): Promise<void> {
+
+    function removeUndefinedFields(obj: Record<string, any>) {
+      return Object.fromEntries(
+        Object.entries(obj).filter(([_, v]) => v !== undefined)
+      );
+    }
+
     const transaction = await TransactionRepository.get(uid, transactionId);
+
     if (!transaction) {
       throw new Error("não encontrado");
     }
+    if(transaction.isRecurring && "date" in data) {
+      throw new Error("não é possível editar transações recorrentes");
+    } 
+    const newBankAccountId = data.bankAccountId;
+    await this.validateBankAccountExists(uid, data.bankAccountId!);
 
-    await TransactionRepository.update(uid, transactionId, data);
+    const oldIsPaid = transaction.isPaid;
+    const newIsPaid = data.isPaid ?? oldIsPaid;
+
+    const oldValue = transaction.value;
+    const newValue = data.value ?? oldValue;
+
+    const oldBankAccountId = transaction.bankAccountId;
+    const bankAccountChanged = newBankAccountId !== oldBankAccountId;
+    
+    const updateDataRaw = {
+      ...data,
+      date: data.date ? dayjs(data.date).toDate() : undefined,
+      startDate: data.startDate ? dayjs(data.startDate).toDate() : undefined,
+      endDate: data.endDate ? dayjs(data.endDate).toDate() : undefined,
+    };
+
+    const updateData = removeUndefinedFields(updateDataRaw);
+    
+    await TransactionRepository.update(uid, transactionId, updateData);
+
+    if (oldIsPaid && !newIsPaid) {
+      // Era pago, virou não pago -> REVERTE o saldo
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        oldValue,
+        transaction.type,
+        false
+      );
+    }
+
+    if (!oldIsPaid && newIsPaid) {
+      // Era não pago, virou pago -> APLICA o saldo
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        newValue,
+        transaction.type,
+        true
+      );
+    }
+
+    if (oldIsPaid && newIsPaid && oldValue !== newValue) {
+      // Continua pago, mas o valor mudou -> REVERTE saldo antigo e aplica saldo novo
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        oldValue,
+        transaction.type,
+        false
+      );
+      await this.adjustBankAccountBalance(
+        uid,
+        transaction.bankAccountId,
+        newValue,
+        transaction.type,
+        true
+      );
+    }
+
+    if (transaction.isPaid && bankAccountChanged) {
+      await this.adjustBankAccountBalance(
+        uid,
+        oldBankAccountId,
+        oldValue,
+        transaction.type,
+        false
+      );
+      await this.adjustBankAccountBalance(
+        uid,
+        newBankAccountId!,
+        newValue,
+        transaction.type,
+        true
+      );
+    }
   }
 
   static async delete(uid: string, transactionId: string): Promise<void> {
@@ -163,26 +252,7 @@ export class TransactionService {
     return await TransactionRepository.getAll(uid);
   }
 
-  static async updateIsPaid(
-    uid: string,
-    transactionId: string,
-    isPaid: boolean
-  ): Promise<void> {
-    const transaction = await TransactionRepository.get(uid, transactionId);
-    if (!transaction) {
-      throw new Error("não encontrado");
-    }
-
-    await this.adjustBankAccountBalance(
-      uid,
-      transaction.bankAccountId,
-      transaction.value,
-      transaction.type,
-      isPaid
-    );
-
-    await TransactionRepository.update(uid, transactionId, { isPaid });
-  }
+  
 
   static async deleteRecurringTransactions(
     uid: string,
