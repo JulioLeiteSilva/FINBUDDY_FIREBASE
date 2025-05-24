@@ -1,5 +1,6 @@
 import { CategoryController } from "../controllers/CategoryController";
 import * as functions from "firebase-functions";
+import { throwHttpsError } from "../utils/errorHandler";
 
 export const categoryRoutes = {
   createCategory: functions.https.onCall(async (request) => {
@@ -11,8 +12,16 @@ export const categoryRoutes = {
         "Usuário não autenticado"
       );
     }
-
-    await CategoryController.createCategory(auth.uid, data);
+    try {
+      await CategoryController.createCategory(auth.uid, data);
+      return {
+        sucess: true,
+        message: "Criação de categoria efetuada com sucesso!",
+      };
+    } catch (error) {
+      throwHttpsError(error as Error, "Categoria");
+      return;
+    }
   }),
 
   updateCategory: functions.https.onCall(async (request) => {
@@ -31,8 +40,16 @@ export const categoryRoutes = {
         "ID da categoria é obrigatório"
       );
     }
-
-    await CategoryController.updateCategory(auth.uid, data.id, data);
+    try {
+      await CategoryController.updateCategory(auth.uid, data.id, data);
+      return {
+        sucess: true,
+        message: "Atualização de categoria efetuada com sucesso!",
+      };
+    } catch (error) {
+      throwHttpsError(error as Error, "Categoria");
+      return;
+    }
   }),
 
   deleteCategory: functions.https.onCall(async (request) => {
@@ -52,7 +69,16 @@ export const categoryRoutes = {
       );
     }
 
-    await CategoryController.deleteCategory(auth.uid, data.id);
+    try {
+      await CategoryController.deleteCategory(auth.uid, data.id);
+      return {
+        sucess: true,
+        message: "Exclusão de categoria efetuada com sucesso!",
+      };
+    } catch (error) {
+      throwHttpsError(error as Error, "Categoria");
+      return;
+    }
   }),
 
   getAllCategories: functions.https.onCall(async (request) => {
@@ -64,8 +90,16 @@ export const categoryRoutes = {
         "Usuário não autenticado"
       );
     }
-
-    return await CategoryController.getAllCategories(auth.uid);
+    try {
+      return await CategoryController.getAllCategories(auth.uid);
+      return {
+        sucess: true,
+        message: "Listagem de categorias efetuada com sucesso!",
+      };
+    } catch (error) {
+      throwHttpsError(error as Error, "Categoria");
+      return;
+    }
   }),
 
   getCategory: functions.https.onCall(async (request) => {

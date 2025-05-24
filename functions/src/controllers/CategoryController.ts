@@ -1,19 +1,29 @@
-import { CategoryRequestDTO } from "../dto/CategoryRequestDTO";
+import {
+  CategoryRequestDTO,
+  CategoryRequestSchema,
+} from "../dto/CategoryRequestDTO";
 import { CategoryService } from "../services/CategoryService";
+import { z } from "zod";
 
 export class CategoryController {
-
-  static async createCategory(uid: string, data: CategoryRequestDTO): Promise<void> {
-    if (!data.name || !data.type || !data.icon) {
-      throw new Error("Todos os campos (nome, tipo e ícone) são obrigatórios");
+  static async createCategory(
+    uid: string,
+    data: CategoryRequestDTO
+  ): Promise<void> {
+    try {
+      const validatedData = CategoryRequestSchema.parse(data);
+      await CategoryService.createCategory(uid, validatedData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
     }
-    if (!["INCOME", "EXPENSE"].includes(data.type)) {
-      throw new Error("O tipo da categoria deve ser 'INCOME' ou 'EXPENSE'");
-    }
-
-    await CategoryService.createCategory(uid, data);
   }
-
 
   static async updateCategory(
     uid: string,
@@ -23,11 +33,19 @@ export class CategoryController {
     if (!categoryId) {
       throw new Error("ID da categoria é obrigatório");
     }
-    if (data.type && !["INCOME", "EXPENSE"].includes(data.type)) {
-      throw new Error("O tipo da categoria deve ser 'INCOME' ou 'EXPENSE'");
+    try {
+      const validatedData = CategoryRequestSchema.partial().parse(data);
+      await CategoryService.updateCategory(uid, categoryId, validatedData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
     }
-
-    await CategoryService.updateCategory(uid, categoryId, data);
   }
 
   static async deleteCategory(uid: string, categoryId: string): Promise<void> {
@@ -49,11 +67,4 @@ export class CategoryController {
 
     return await CategoryService.getCategory(uid, categoryId);
   }
-
-
-
-
-
-
-
 }

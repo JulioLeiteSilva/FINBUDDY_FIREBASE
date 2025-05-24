@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "finbuddy-6af05"
-  }
+    "default": "finbuddy-6af05",
+    "finbuddy": "finbuddy-6af05"
+  },
+  "targets": {},
+  "etags": {}
 }

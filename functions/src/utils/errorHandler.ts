@@ -9,7 +9,8 @@ type EntityType =
   | "Conta bancária"
   | "Usuário"
   | "Transação"
-  | "Objetivo financeiro";
+  | "Objetivo financeiro"
+  | "Categoria";
 
 const getNotFoundMessage = (entity: EntityType) =>
   `${entity} não encontrado(a)`;
