@@ -153,7 +153,7 @@ export const bankAccountRoutes = {
 
     try {
       const accounts = await BankAccountController.getAll(auth.uid);
-      return accounts;
+      return { message: "Listagem de contas efetuada com sucesso!", accounts };
     } catch (error) {
       return throwHttpsError(error as Error);
     }
