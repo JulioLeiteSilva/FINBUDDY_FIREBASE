@@ -26,7 +26,7 @@ export class TransactionRepository {
   static async update(
     uid: string,
     transactionId: string,
-    data: Partial<TransactionRequestDTO>
+    data: TransactionRequestDTO
   ): Promise<Transaction> {
     const ref = db
       .collection("users")
@@ -39,7 +39,7 @@ export class TransactionRepository {
       throw new Error("não encontrado");
     }
 
-    await ref.update(data as { [key: string]: any });
+    await ref.set(data, { merge: false });
     const updatedDoc = await ref.get();
     return updatedDoc.data() as Transaction;
   }
@@ -116,6 +116,65 @@ export class TransactionRepository {
     transactionsSnapshot.forEach((doc) => {
       batch.delete(doc.ref);
     });
+
+    await batch.commit();
+  }
+
+  static async getAllInvoices(uid: string): Promise<Transaction[]> {
+    const snapshot = await db
+      .collection("users")
+      .doc(uid)
+      .collection("transactions")
+      .where("type", "==", "INVOICE")
+      .get();
+    return snapshot.docs.map((doc) => doc.data() as Transaction);
+  }
+
+  static async batchUpdate(
+    uid: string,
+    updates: { id: string; data: Partial<Transaction> }[]
+  ): Promise<void> {
+    const batch = db.batch();
+    const transactionsRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("transactions");
+
+    updates.forEach(({ id, data }) => {
+      const docRef = transactionsRef.doc(id);
+      batch.update(docRef, data);
+    });
+
+    await batch.commit();
+  }
+
+  static async getAllByPrimaryTransactionId(
+    uid: string,
+    primaryTransactionId: string
+  ): Promise<Transaction[]> {
+    const snapshot = await db
+      .collection("users")
+      .doc(uid)
+      .collection("transactions")
+      .where("primaryTransactionId", "==", primaryTransactionId)
+      .get();
+
+    return snapshot.docs.map((doc) => doc.data() as Transaction);
+  }
+  static async batchDelete(
+    uid: string,
+    transactionIds: string[]
+  ): Promise<void> {
+    const batch = db.batch();
+    const collectionRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("transactions");
+
+    for (const id of transactionIds) {
+      const docRef = collectionRef.doc(id);
+      batch.delete(docRef);
+    }
 
     await batch.commit();
   }

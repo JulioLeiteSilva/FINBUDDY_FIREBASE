@@ -1,12 +1,12 @@
-import { CreditCardInvoice } from "./CreditCardInvoice";
+import { CreditCardFlag } from "../enums/CreditCardFlag";
 
 export interface CreditCard {
   id: string;
   name: string;
-  flag: string;
+  flag: CreditCardFlag;
   closingDay: number;
   dueDate: number;
   limit: number;
-  invoice: CreditCardInvoice[];
-  currentBalance: number;
+  bankAccountId: string;
+  
 }
