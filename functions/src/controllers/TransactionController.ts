@@ -6,10 +6,31 @@ import {
 import { TransactionService } from "../services/TransactionService";
 
 export class TransactionController {
-  static async createTransaction(uid: string, data: TransactionRequestDTO) {
+  static async createIncomeOrExpense(uid: string, data: TransactionRequestDTO) {
     try {
       const validatedData = TransactionRequestSchema.parse(data);
-      return await TransactionService.createTransaction(uid, validatedData);
+      return await TransactionService.createIncomeOrExpenseTransaction(
+        uid,
+        validatedData
+      );
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
+    }
+  }
+  static async createInvoice(uid: string, data: TransactionRequestDTO) {
+    try {
+      const validatedData = TransactionRequestSchema.parse(data);
+      return await TransactionService.createInvoiceTransaction(
+        uid,
+        validatedData
+      );
     } catch (error) {
       if (error instanceof z.ZodError) {
         const errors = error.errors.map((err) => ({
@@ -44,15 +65,20 @@ export class TransactionController {
     }
   }
 
+  static async deleteIncomeOrExpenseTransaction(uid: string, id: string) {
+  await TransactionService.deleteIncomeOrExpenseTransaction(uid, id);
+}
 
-  static async deleteTransaction(uid: string, transactionId: string) {
-    if (!transactionId) throw new Error("não encontrado");
-    return await TransactionService.delete(uid, transactionId);
-  }
+static async deleteInvoiceTransaction(uid: string, id: string) {
+  await TransactionService.deleteInvoiceTransaction(uid, id);
+}
 
-  static async getAllTransactions(uid: string) {
-    return await TransactionService.getAll(uid);
+  static async getAllIncomeOrExpense(uid: string) {
+    return await TransactionService.getAllIncomeOrExpense(uid);
   }
+  static async getAllInvoices(uid: string) {
+  return await TransactionService.getAllInvoices(uid);
+}
 
   static async deleteRecurringTransaction(uid: string, transactionId: string) {
     if (!transactionId) throw new Error("não encontrado");

@@ -4,7 +4,7 @@ import { throwHttpsError } from "../utils/errorHandler";
 import { TransactionRequestDTO } from "../dto/TransactionRequestDTO";
 
 export const transactionRoutes = {
-  createTransaction: functions.https.onCall(async (request) => {
+  createIncomeOrExpense: functions.https.onCall(async (request) => {
     const { auth, data } = request;
 
     if (!auth?.uid) {
@@ -15,7 +15,26 @@ export const transactionRoutes = {
     }
 
     try {
-      await TransactionController.createTransaction(
+      await TransactionController.createIncomeOrExpense(
+        auth.uid,
+        data as TransactionRequestDTO
+      );
+      return { message: "Transação criada com sucesso" };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
+  }),
+
+  createInvoice: functions.https.onCall(async (request) => {
+    const { auth, data } = request;
+    if (!auth?.uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Usuário não autenticado"
+      );
+    }
+    try {
+      await TransactionController.createInvoice(
         auth.uid,
         data as TransactionRequestDTO
       );
@@ -47,39 +66,69 @@ export const transactionRoutes = {
     }
   }),
 
-
-  deleteTransaction: functions.https.onCall(async (request) => {
+  deleteIncomeOrExpenseTransaction: functions.https.onCall(async (request) => {
     const { auth, data } = request;
-
     if (!auth?.uid) {
       throw new functions.https.HttpsError(
         "unauthenticated",
         "Usuário não autenticado"
       );
     }
-
     try {
-      await TransactionController.deleteTransaction(auth.uid, data.id);
+      await TransactionController.deleteIncomeOrExpenseTransaction(
+        auth.uid,
+        data.id
+      );
       return { message: "Transação excluída com sucesso" };
     } catch (error) {
       return throwHttpsError(error as Error, "Transação");
     }
   }),
 
-  getAllTransactions: functions.https.onCall(async (request) => {
-    const { auth } = request;
-
+  deleteInvoiceTransaction: functions.https.onCall(async (request) => {
+    const { auth, data } = request;
     if (!auth?.uid) {
       throw new functions.https.HttpsError(
         "unauthenticated",
         "Usuário não autenticado"
       );
     }
-
     try {
-      const transactions = await TransactionController.getAllTransactions(
+      await TransactionController.deleteInvoiceTransaction(auth.uid, data.id);
+      return { message: "Transação de fatura excluída com sucesso" };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
+  }),
+
+  getAllIncomeOrExpense: functions.https.onCall(async (request) => {
+    const { auth } = request;
+    if (!auth?.uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Usuário não autenticado"
+      );
+    }
+    try {
+      const transactions = await TransactionController.getAllIncomeOrExpense(
         auth.uid
       );
+      return { message: "Transações recuperadas com sucesso", transactions };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
+  }),
+
+  getAllInvoices: functions.https.onCall(async (request) => {
+    const { auth } = request;
+    if (!auth?.uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Usuário não autenticado"
+      );
+    }
+    try {
+      const transactions = await TransactionController.getAllInvoices(auth.uid);
       return { message: "Transações recuperadas com sucesso", transactions };
     } catch (error) {
       return throwHttpsError(error as Error, "Transação");

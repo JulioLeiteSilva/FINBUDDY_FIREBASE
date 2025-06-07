@@ -9,6 +9,10 @@ import { TransactionFrequency } from "../enums/TransactionFrequency";
 import { Transaction } from "../models/Transaction";
 import { TransactionRepository } from "../repositories/TransactionRepository";
 import { BankAccountService } from "./BankAccountService";
+import { CreditCardInvoiceRepository } from "../repositories/CreditCardInvoiceRepository";
+import { CreditCardRepository } from "../repositories/CreditCardRepository";
+import { InvoiceStatus } from "../enums/InvoiceStatus";
+import { CreditCardInvoiceService } from "./CreditCardInvoiceService";
 
 dayjs.extend(isSameOrBefore);
 dayjs.extend(utc);
@@ -45,30 +49,38 @@ export class TransactionService {
     }
   }
 
-  static async createTransaction(
+  static async createIncomeOrExpenseTransaction(
     uid: string,
     data: TransactionRequestDTO
-  ): Promise<void> {
+  ) {
     await this.validateBankAccountExists(uid, data.bankAccountId);
 
+    // --- NÃO RECORRENTE ---
     if (!data.isRecurring) {
       const id = db
         .collection("users")
         .doc(uid)
         .collection("transactions")
         .doc().id;
-      const transaction: Transaction = {
+      let transaction: any = {
         id,
         name: data.name,
         category: data.category,
         value: data.value,
         date: this.formatDate(data.date),
         type: data.type,
-        isRecurring: data.isRecurring,
+        isRecurring: false,
         isPaid: data.isPaid,
         currency: data.currency,
         bankAccountId: data.bankAccountId,
+        frequency: undefined,
+        startDate: undefined,
+        endDate: undefined,
       };
+      Object.keys(transaction).forEach(
+        (key) => transaction[key] === undefined && delete transaction[key]
+      );
+      transaction = transaction as Transaction;
 
       await TransactionRepository.createMany(uid, [transaction]);
 
@@ -84,8 +96,9 @@ export class TransactionService {
       return;
     }
 
+    // --- RECORRENTE ---
     const transactions: Transaction[] = [];
-    let currentDate: dayjs.Dayjs = dayjs.utc(data.startDate, this.TIMEZONE);
+    let currentDate: dayjs.Dayjs = dayjs.utc(data.date, this.TIMEZONE);
     const endDate: dayjs.Dayjs = dayjs.utc(data.endDate, this.TIMEZONE);
 
     while (currentDate.isSameOrBefore(endDate, "day")) {
@@ -94,22 +107,25 @@ export class TransactionService {
         .doc(uid)
         .collection("transactions")
         .doc().id;
-
-      const transaction: Transaction = {
+      let transaction: any = {
         id,
         name: data.name,
         category: data.category,
         value: data.value,
-        type: data.type,
         date: currentDate.toDate(),
-        startDate: this.formatDate(data.startDate!),
-        endDate: endDate.toDate(),
-        isRecurring: data.isRecurring,
-        frequency: data.frequency || undefined,
+        isRecurring: true,
+        frequency: data.frequency,
         isPaid: transactions.length === 0 ? data.isPaid : false,
         currency: data.currency,
         bankAccountId: data.bankAccountId,
+        type: data.type,
+        startDate: this.formatDate(data.startDate!),
+        endDate: endDate.toDate(),
       };
+      Object.keys(transaction).forEach(
+        (key) => transaction[key] === undefined && delete transaction[key]
+      );
+      transaction = transaction as Transaction;
 
       transactions.push(transaction);
 
@@ -129,27 +145,109 @@ export class TransactionService {
     }
   }
 
-  static async update(
+  static async createInvoiceTransaction(
     uid: string,
-    transactionId: string,
-    data: Partial<TransactionRequestDTO>
-  ): Promise<void> {
-
-    function removeUndefinedFields(obj: Record<string, any>) {
-      return Object.fromEntries(
-        Object.entries(obj).filter(([_, v]) => v !== undefined)
+    data: TransactionRequestDTO
+  ) {
+    // Validação: INVOICE nunca pode ser criada como paga
+    if (data.isPaid !== false) {
+      throw new Error(
+        "Transações do tipo INVOICE não podem ser criadas como pagas (isPaid deve ser false)."
       );
     }
 
+    await this.validateBankAccountExists(uid, data.bankAccountId);
+
+    // --- PARCELAMENTO ---
+    let parcelas = 1;
+    let startDate = dayjs.utc(data.date, this.TIMEZONE);
+    let endDate = data.endDate
+      ? dayjs.utc(data.endDate, this.TIMEZONE)
+      : startDate;
+
+    if (endDate.isAfter(startDate, "day")) {
+      parcelas = endDate.diff(startDate, "month") + 1;
+    }
+
+    const valorParcela = data.value / parcelas;
+    const transactions: Transaction[] = [];
+
+    const primaryTransactionId = db
+      .collection("users")
+      .doc(uid)
+      .collection("transactions")
+      .doc().id;
+
+    for (let i = 0; i < parcelas; i++) {
+      const parcelaDate = startDate.add(i, "month");
+      const parcelaData = { ...data, date: parcelaDate.toISOString() };
+      // Só valida o range para a primeira parcela
+      parcelaData.invoiceId = await this.getOrCreateInvoiceForTransaction(
+        uid,
+        parcelaData,
+        i === 0 // true só para a primeira parcela
+      );
+
+      const id = db
+        .collection("users")
+        .doc(uid)
+        .collection("transactions")
+        .doc().id;
+
+      let transaction: any = {
+        id,
+        name: data.name,
+        category: data.category,
+        value: valorParcela,
+        date: parcelaDate.toDate(),
+        type: "INVOICE",
+        isRecurring: false,
+        isPaid: false, // Sempre false para INVOICE!
+        currency: data.currency,
+        bankAccountId: data.bankAccountId,
+        invoiceId: parcelaData.invoiceId,
+        creditCardId: data.creditCardId,
+        startDate: undefined,
+        endDate: undefined,
+        frequency: undefined,
+        primaryTransactionId,
+      };
+      Object.keys(transaction).forEach(
+        (key) => transaction[key] === undefined && delete transaction[key]
+      );
+      transaction = transaction as Transaction;
+
+      transactions.push(transaction);
+    }
+
+    await TransactionRepository.createMany(uid, transactions);
+  }
+
+  static async update(
+    uid: string,
+    transactionId: string,
+    data: TransactionRequestDTO
+  ): Promise<void> {
     const transaction = await TransactionRepository.get(uid, transactionId);
 
     if (!transaction) {
       throw new Error("não encontrado");
     }
-    if(transaction.isRecurring && "date" in data) {
-      throw new Error("não é possível editar transações recorrentes");
-    } 
-    const newBankAccountId = data.bankAccountId;
+
+    if (transaction.type === "INVOICE") {
+      throw new Error("Não é permitido atualizar transações do tipo INVOICE.");
+    }
+
+    if (
+      transaction.isRecurring &&
+      data.date &&
+      dayjs(data.date).toISOString() !== dayjs(transaction.date).toISOString()
+    ) {
+      throw new Error(
+        "Não é permitido alterar a data de transações recorrentes."
+      );
+    }
+
     await this.validateBankAccountExists(uid, data.bankAccountId!);
 
     const oldIsPaid = transaction.isPaid;
@@ -159,18 +257,10 @@ export class TransactionService {
     const newValue = data.value ?? oldValue;
 
     const oldBankAccountId = transaction.bankAccountId;
+    const newBankAccountId = data.bankAccountId;
     const bankAccountChanged = newBankAccountId !== oldBankAccountId;
-    
-    const updateDataRaw = {
-      ...data,
-      date: data.date ? dayjs(data.date).toDate() : undefined,
-      startDate: data.startDate ? dayjs(data.startDate).toDate() : undefined,
-      endDate: data.endDate ? dayjs(data.endDate).toDate() : undefined,
-    };
 
-    const updateData = removeUndefinedFields(updateDataRaw);
-    
-    await TransactionRepository.update(uid, transactionId, updateData);
+    await TransactionRepository.update(uid, transactionId, data);
 
     if (oldIsPaid && !newIsPaid) {
       // Era pago, virou não pago -> REVERTE o saldo
@@ -230,10 +320,19 @@ export class TransactionService {
     }
   }
 
-  static async delete(uid: string, transactionId: string): Promise<void> {
+  static async deleteIncomeOrExpenseTransaction(
+    uid: string,
+    transactionId: string
+  ): Promise<void> {
     const transaction = await TransactionRepository.get(uid, transactionId);
     if (!transaction) {
       throw new Error("Transação não encontrada");
+    }
+
+    if (transaction.type === "INVOICE") {
+      throw new Error(
+        "Use o método específico para deletar transações do tipo INVOICE."
+      );
     }
 
     if (transaction.isPaid) {
@@ -248,11 +347,67 @@ export class TransactionService {
     await TransactionRepository.delete(uid, transactionId);
   }
 
-  static async getAll(uid: string) {
-    return await TransactionRepository.getAll(uid);
+  static async deleteInvoiceTransaction(
+    uid: string,
+    primaryTransactionId: string
+  ): Promise<void> {
+    if (!primaryTransactionId) {
+      throw new Error("Identificador do parcelamento não informado.");
+    }
+
+    const related = await TransactionRepository.getAllByPrimaryTransactionId(
+      uid,
+      primaryTransactionId
+    );
+
+    if (related.length === 0) {
+      throw new Error("Nenhuma transação encontrada para esse parcelamento.");
+    }
+
+    if (related.some((t) => t.isPaid)) {
+      throw new Error(
+        "Não é possível deletar: uma ou mais parcelas já foram pagas."
+      );
+    }
+
+    for (const t of related) {
+      if (t.invoiceId && t.creditCardId) {
+        const invoices = await CreditCardInvoiceRepository.getAll(
+          uid,
+          t.creditCardId
+        );
+        const invoice = invoices.find((i) => i.id === t.invoiceId);
+        if (invoice) {
+          await CreditCardInvoiceRepository.update(
+            uid,
+            t.creditCardId,
+            invoice.id,
+            { total: (invoice.total ?? 0) + t.value }
+          );
+        }
+      }
+    }
+    await TransactionRepository.batchDelete(
+      uid,
+      related.map((t) => t.id)
+    );
   }
 
-  
+  static async getAllIncomeOrExpense(uid: string) {
+    const all = await TransactionRepository.getAll(uid);
+    return all.filter((t) => t.type === "INCOME" || t.type === "EXPENSE");
+  }
+
+  static async getAllInvoices(uid: string) {
+    const cards = await CreditCardRepository.getAll(uid);
+
+    // Atualiza o status das faturas de todos os cartões
+    for (const card of cards) {
+      await CreditCardInvoiceService.checkAndUpdateInvoicesStatus(uid, card.id);
+    }
+
+    return await TransactionRepository.getAllInvoices(uid);
+  }
 
   static async deleteRecurringTransactions(
     uid: string,
@@ -296,7 +451,7 @@ export class TransactionService {
   private static calculateNewBalance(
     currentBalance: number,
     value: number,
-    type: "INCOME" | "EXPENSE",
+    type: "INCOME" | "EXPENSE" | "INVOICE",
     isAdding: boolean
   ): number {
     this.validateTransactionValue(value);
@@ -311,7 +466,7 @@ export class TransactionService {
     uid: string,
     bankAccountId: string,
     value: number,
-    type: "INCOME" | "EXPENSE",
+    type: "INCOME" | "EXPENSE" | "INVOICE",
     isAdding: boolean
   ): Promise<void> {
     const bankAccount = await BankAccountService.get(uid, bankAccountId);
@@ -339,5 +494,104 @@ export class TransactionService {
     if (!bankAccount) {
       throw new Error(this.ERROR_MESSAGES.BANK_ACCOUNT_NOT_FOUND);
     }
+  }
+
+  private static async getOrCreateInvoiceForTransaction(
+    uid: string,
+    data: TransactionRequestDTO,
+    validateRange: boolean = true
+  ) {
+    const cards = await CreditCardRepository.getAll(uid);
+    const card = cards.find((c) => c.id === data.creditCardId);
+    if (!card) throw new Error("Cartão de crédito não encontrado");
+
+    const transDate = dayjs.tz(data.date, this.TIMEZONE);
+    const now = dayjs().tz(this.TIMEZONE);
+
+    const closingDay = card.closingDay;
+
+    // Calcula o fechamento da fatura da transação
+    let invoiceClosing = transDate.clone().date(closingDay);
+    if (transDate.date() > closingDay) {
+      invoiceClosing = invoiceClosing.add(1, "month");
+    }
+    let invoiceMonth = invoiceClosing.month() + 1;
+    let invoiceYear = invoiceClosing.year();
+
+    // Calcula o fechamento da fatura atual
+    let currentClosing = now.clone().date(closingDay);
+    if (now.date() > closingDay) {
+      currentClosing = currentClosing.add(1, "month");
+    }
+    const currentInvoiceMonth = currentClosing.month() + 1;
+    const currentInvoiceYear = currentClosing.year();
+
+    const diffMonths =
+      (invoiceYear - currentInvoiceYear) * 12 +
+      (invoiceMonth - currentInvoiceMonth);
+
+    if (validateRange) {
+      if (diffMonths < -1) {
+        throw new Error(
+          "Só é permitido inserir transações em faturas do ciclo anterior em diante."
+        );
+      }
+      if (diffMonths > 2) {
+        throw new Error(
+          "Só é permitido inserir transações em faturas de até 2 ciclos à frente."
+        );
+      }
+    }
+
+    // Busca fatura existente
+    let invoices = await CreditCardInvoiceRepository.getAll(uid, card.id);
+    let invoice = invoices.find(
+      (i) => i.month === invoiceMonth && i.year === invoiceYear
+    );
+
+    if (invoice && invoice.status === InvoiceStatus.PAID) {
+      throw new Error(
+        "Não é possível adicionar transação em uma fatura já paga."
+      );
+    }
+
+    // Se não existe, cria a fatura
+    if (!invoice) {
+      let status: InvoiceStatus = InvoiceStatus.OPEN;
+
+      if (diffMonths < 0) {
+        status = InvoiceStatus.CLOSED;
+      } else if (diffMonths === 0) {
+        status =
+          transDate.date() > card.closingDay
+            ? InvoiceStatus.OPEN
+            : InvoiceStatus.CLOSED;
+      }
+      // Futuro: mantém OPEN
+
+      const id = db
+        .collection("users")
+        .doc(uid)
+        .collection("transactions")
+        .doc().id;
+
+      invoice = {
+        id: id,
+        status,
+        total: card.limit,
+        month: invoiceMonth,
+        year: invoiceYear,
+        bankAccountId: null,
+      };
+      await CreditCardInvoiceRepository.create(uid, card.id, invoice);
+    }
+
+    // Atualiza o total da fatura
+    const novoTotal = (invoice.total ?? card.limit) - data.value;
+    await CreditCardInvoiceRepository.update(uid, card.id, invoice.id, {
+      total: novoTotal,
+    });
+
+    return invoice.id;
   }
 }

@@ -6,7 +6,7 @@ export interface Transaction {
   category: string;
   value: number;
   date: Date;
-  type: "INCOME" | "EXPENSE";
+  type: "INCOME" | "EXPENSE" | "INVOICE"; 
   isRecurring: boolean;
   frequency?: TransactionFrequency;
   startDate?: Date;
@@ -14,4 +14,7 @@ export interface Transaction {
   isPaid: boolean;
   currency: string;
   bankAccountId: string;
+  invoiceId?: string;
+  creditCardId?: string;
+  primaryTransactionId?: string | null;
 }

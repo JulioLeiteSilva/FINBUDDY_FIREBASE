@@ -28,9 +28,11 @@ export const TransactionRequestSchema = z
         "Data deve estar no formato YYYY-MM-DD ou YYYY-MM-DDTHH:mm:ss.SSSZ"
       ),
 
-    type: z.enum(["INCOME", "EXPENSE"], {
-      errorMap: () => ({ message: "Tipo deve ser INCOME ou EXPENSE" }),
+    type: z.enum(["INCOME", "EXPENSE", "INVOICE"], {
+      errorMap: () => ({ message: "Tipo deve ser INCOME, EXPENSE ou INVOICE" }),
     }),
+    invoiceId: z.string().optional(),
+    creditCardId: z.string().optional(),
 
     isRecurring: z.boolean().default(false),
 
@@ -70,6 +72,7 @@ export const TransactionRequestSchema = z
       ),
 
     bankAccountId: z.string().min(1, "ID da conta bancária é obrigatório"),
+    primaryTransactionId: z.string().nullable().optional(),
   })
   .refine(
     (data) => {
