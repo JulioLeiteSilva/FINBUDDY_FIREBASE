@@ -18,6 +18,18 @@ dayjs.extend(isSameOrBefore);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+type FirestoreTimestamp = {
+  _seconds: number;
+  _nanoseconds: number;
+};
+
+const firestoreTimestampToDate = (timestamp: unknown): Date | null => {
+  const ts = timestamp as FirestoreTimestamp;
+  if (ts && typeof ts._seconds === "number") {
+    return new Date(ts._seconds * 1000);
+  }
+  return null;
+};
 export class TransactionService {
   // Add standardized error messages
   private static readonly ERROR_MESSAGES = {
@@ -98,8 +110,8 @@ export class TransactionService {
 
     // --- RECORRENTE ---
     const transactions: Transaction[] = [];
-    let currentDate: dayjs.Dayjs = dayjs.utc(data.date, this.TIMEZONE);
-    const endDate: dayjs.Dayjs = dayjs.utc(data.endDate, this.TIMEZONE);
+    let currentDate: dayjs.Dayjs = dayjs.tz(data.date, this.TIMEZONE);
+    const endDate: dayjs.Dayjs = dayjs.tz(data.endDate, this.TIMEZONE);
 
     while (currentDate.isSameOrBefore(endDate, "day")) {
       const id = db
@@ -112,7 +124,7 @@ export class TransactionService {
         name: data.name,
         category: data.category,
         value: data.value,
-        date: currentDate.toDate(),
+        date: this.formatDate(currentDate.toDate()),
         isRecurring: true,
         frequency: data.frequency,
         isPaid: transactions.length === 0 ? data.isPaid : false,
@@ -160,9 +172,9 @@ export class TransactionService {
 
     // --- PARCELAMENTO ---
     let parcelas = 1;
-    let startDate = dayjs.utc(data.date, this.TIMEZONE);
+    let startDate = dayjs.tz(data.date, this.TIMEZONE);
     let endDate = data.endDate
-      ? dayjs.utc(data.endDate, this.TIMEZONE)
+      ? dayjs.tz(data.endDate, this.TIMEZONE)
       : startDate;
 
     if (endDate.isAfter(startDate, "day")) {
@@ -238,10 +250,43 @@ export class TransactionService {
       throw new Error("Não é permitido atualizar transações do tipo INVOICE.");
     }
 
+    const updatePayload: Transaction = {
+      id: transactionId,
+      name: data.name,
+      category: data.category,
+      value: data.value,
+      date: this.formatDate(data.date),
+      type: data.type,
+      isRecurring: data.isRecurring,
+      isPaid: data.isPaid,
+      currency: data.currency,
+      bankAccountId: data.bankAccountId,
+      frequency: data.frequency ? data.frequency : undefined,
+      startDate: data.startDate ? this.formatDate(data.startDate) : undefined,
+      endDate: data.endDate ? this.formatDate(data.endDate) : undefined,
+    };
+    Object.keys(updatePayload).forEach(
+      (key) =>
+        updatePayload[key as keyof Transaction] === undefined &&
+        delete updatePayload[key as keyof Transaction]
+    );
+
+    const newTransactionDate = firestoreTimestampToDate(transaction.date);
+  
+    const updateDateISO =
+      updatePayload.date instanceof Date
+        ? updatePayload.date.toISOString()
+        : dayjs(updatePayload.date).toISOString();
+
+    const transactionDateISO =
+      newTransactionDate instanceof Date
+        ? newTransactionDate.toISOString()
+        : dayjs(newTransactionDate).toISOString();
+
     if (
       transaction.isRecurring &&
-      data.date &&
-      dayjs(data.date).toISOString() !== dayjs(transaction.date).toISOString()
+      updatePayload.date &&
+      updateDateISO !== transactionDateISO
     ) {
       throw new Error(
         "Não é permitido alterar a data de transações recorrentes."
@@ -260,7 +305,7 @@ export class TransactionService {
     const newBankAccountId = data.bankAccountId;
     const bankAccountChanged = newBankAccountId !== oldBankAccountId;
 
-    await TransactionRepository.update(uid, transactionId, data);
+    await TransactionRepository.update(uid, transactionId, updatePayload);
 
     if (oldIsPaid && !newIsPaid) {
       // Era pago, virou não pago -> REVERTE o saldo

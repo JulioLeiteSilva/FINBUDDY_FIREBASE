@@ -26,7 +26,7 @@ export class TransactionRepository {
   static async update(
     uid: string,
     transactionId: string,
-    data: TransactionRequestDTO
+    data: Transaction
   ): Promise<Transaction> {
     const ref = db
       .collection("users")
