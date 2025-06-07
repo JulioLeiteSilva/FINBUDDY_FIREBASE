@@ -30,6 +30,7 @@ const firestoreTimestampToDate = (timestamp: unknown): Date | null => {
   }
   return null;
 };
+
 export class TransactionService {
   // Add standardized error messages
   private static readonly ERROR_MESSAGES = {
