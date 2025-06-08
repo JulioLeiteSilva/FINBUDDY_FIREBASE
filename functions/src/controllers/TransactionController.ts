@@ -64,21 +64,42 @@ export class TransactionController {
       throw error;
     }
   }
+  static async updateInvoiceTransactions(
+    uid: string,
+    data: TransactionRequestDTO
+  ) {
+    try {
+      const validatedData = TransactionRequestSchema.parse(data);
+      return await TransactionService.updateInvoiceTransactions(
+        uid,
+        validatedData
+      );
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
+    }
+  }
 
   static async deleteIncomeOrExpenseTransaction(uid: string, id: string) {
-  await TransactionService.deleteIncomeOrExpenseTransaction(uid, id);
-}
+    await TransactionService.deleteIncomeOrExpenseTransaction(uid, id);
+  }
 
-static async deleteInvoiceTransaction(uid: string, id: string) {
-  await TransactionService.deleteInvoiceTransaction(uid, id);
-}
+  static async deleteInvoiceTransaction(uid: string, id: string) {
+    await TransactionService.deleteInvoiceTransaction(uid, id);
+  }
 
   static async getAllIncomeOrExpense(uid: string) {
     return await TransactionService.getAllIncomeOrExpense(uid);
   }
   static async getAllInvoices(uid: string) {
-  return await TransactionService.getAllInvoices(uid);
-}
+    return await TransactionService.getAllInvoices(uid);
+  }
 
   static async deleteRecurringTransaction(uid: string, transactionId: string) {
     if (!transactionId) throw new Error("não encontrado");

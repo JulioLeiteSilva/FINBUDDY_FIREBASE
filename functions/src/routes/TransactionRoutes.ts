@@ -152,4 +152,25 @@ export const transactionRoutes = {
       return throwHttpsError(error as Error, "Transação");
     }
   }),
+
+  updateInvoiceTransactions: functions.https.onCall(async (request) => {
+    const { auth, data } = request;
+
+    if (!auth?.uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Usuário não autenticado"
+      );
+    }
+
+    try {
+      await TransactionController.updateInvoiceTransactions(
+        auth.uid,
+        data as TransactionRequestDTO
+      );
+      return { message: "Transações de fatura atualizadas com sucesso" };
+    } catch (error) {
+      return throwHttpsError(error as Error, "Transação");
+    }
+  }),
 };

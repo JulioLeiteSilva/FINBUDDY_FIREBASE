@@ -13,6 +13,7 @@ import { CreditCardInvoiceRepository } from "../repositories/CreditCardInvoiceRe
 import { CreditCardRepository } from "../repositories/CreditCardRepository";
 import { InvoiceStatus } from "../enums/InvoiceStatus";
 import { CreditCardInvoiceService } from "./CreditCardInvoiceService";
+import { CreditCard } from "../models/CreditCard";
 
 dayjs.extend(isSameOrBefore);
 dayjs.extend(utc);
@@ -171,6 +172,17 @@ export class TransactionService {
 
     await this.validateBankAccountExists(uid, data.bankAccountId);
 
+    const card = (await CreditCardRepository.getAll(uid)).find(
+      (c) => c.id === data.creditCardId
+    );
+    if (!card) throw new Error("Cartão de crédito não encontrado");
+
+    if (data.value > card.limit) {
+      throw new Error(
+        "O valor da parcela não pode ser maior que o limite do cartão de crédito."
+      );
+    }
+
     // --- PARCELAMENTO ---
     let parcelas = 1;
     let startDate = dayjs.tz(data.date, this.TIMEZONE);
@@ -182,7 +194,8 @@ export class TransactionService {
       parcelas = endDate.diff(startDate, "month") + 1;
     }
 
-    const valorParcela = data.value / parcelas;
+    const valorParcela = Math.round((data.value / parcelas) * 100) / 100;
+
     const transactions: Transaction[] = [];
 
     const primaryTransactionId = db
@@ -193,12 +206,18 @@ export class TransactionService {
 
     for (let i = 0; i < parcelas; i++) {
       const parcelaDate = startDate.add(i, "month");
-      const parcelaData = { ...data, date: parcelaDate.toISOString() };
+      // Aqui sobrescreve o value para cada parcela!
+      const parcelaData = {
+        ...data,
+        date: parcelaDate.toISOString(),
+        value: valorParcela,
+      };
       // Só valida o range para a primeira parcela
       parcelaData.invoiceId = await this.getOrCreateInvoiceForTransaction(
         uid,
         parcelaData,
-        i === 0 // true só para a primeira parcela
+        i === 0, // true só para a primeira parcela
+        card
       );
 
       const id = db
@@ -273,7 +292,7 @@ export class TransactionService {
     );
 
     const newTransactionDate = firestoreTimestampToDate(transaction.date);
-  
+
     const updateDateISO =
       updatePayload.date instanceof Date
         ? updatePayload.date.toISOString()
@@ -545,12 +564,9 @@ export class TransactionService {
   private static async getOrCreateInvoiceForTransaction(
     uid: string,
     data: TransactionRequestDTO,
-    validateRange: boolean = true
+    validateRange: boolean = true,
+    card: CreditCard
   ) {
-    const cards = await CreditCardRepository.getAll(uid);
-    const card = cards.find((c) => c.id === data.creditCardId);
-    if (!card) throw new Error("Cartão de crédito não encontrado");
-
     const transDate = dayjs.tz(data.date, this.TIMEZONE);
     const now = dayjs().tz(this.TIMEZONE);
 
@@ -639,5 +655,98 @@ export class TransactionService {
     });
 
     return invoice.id;
+  }
+
+  static async updateInvoiceTransactions(
+    uid: string,
+    data: TransactionRequestDTO
+  ): Promise<void> {
+    const transactions =
+      await TransactionRepository.getAllByPrimaryTransactionId(
+        uid,
+        data.primaryTransactionId!
+      );
+
+    if (!transactions.length) {
+      throw new Error("Nenhuma transação encontrada para esse parcelamento.");
+    }
+
+    // Garante que todas são do tipo INVOICE
+    if (!transactions.every((t) => t.type === "INVOICE")) {
+      throw new Error("Só é permitido atualizar transações do tipo INVOICE.");
+    }
+
+    if (transactions.some((t) => t.isPaid)) {
+      throw new Error(
+        "Não é possível alterar: uma ou mais parcelas que já foram pagas."
+      );
+    }
+
+    // Permite alterar apenas esses campos
+    const camposPermitidos = ["name", "value", "category"];
+    const original = transactions[0];
+    const camposDeData = ["date", "startDate", "endDate"];
+    const camposIgnorados = [...camposDeData, "invoiceId"];
+
+    console.log(transactions[0].invoiceId);
+    console.log(data.invoiceId);
+
+    // Verifica se algum campo não permitido (exceto data) foi realmente alterado
+    for (const campo of Object.keys(original)) {
+      if (
+        !camposPermitidos.includes(campo) &&
+        !camposIgnorados.includes(campo)
+      ) {
+        const originalValue = (original as any)[campo];
+        const novoValor = (data as any)[campo];
+
+        if (
+          novoValor !== undefined &&
+          novoValor !== null &&
+          String(novoValor) !== String(originalValue)
+        ) {
+          throw new Error(
+            `Não é permitido alterar o campo '${campo}' em transações do tipo INVOICE.`
+          );
+        }
+      }
+    }
+
+    // Se o valor mudou, atualiza o total das faturas relacionadas
+    if (data.value !== undefined && data.value !== original.value) {
+      for (const t of transactions) {
+        if (t.invoiceId && t.creditCardId) {
+          // Busca a fatura
+          const invoices = await CreditCardInvoiceRepository.getAll(
+            uid,
+            t.creditCardId
+          );
+          const invoice = invoices.find((i) => i.id === t.invoiceId);
+          if (invoice) {
+            // Devolve o valor antigo e aplica o novo
+            const novoTotal = (invoice.total ?? 0) + t.value - data.value;
+            await CreditCardInvoiceRepository.update(
+              uid,
+              t.creditCardId,
+              invoice.id,
+              { total: novoTotal }
+            );
+          }
+        }
+      }
+    }
+
+    // Atualiza todas as transações do parcelamento
+    await TransactionRepository.batchUpdate(
+      uid,
+      transactions.map((t) => ({
+        id: t.id,
+        data: {
+          name: data.name,
+          value: data.value,
+          category: data.category,
+        },
+      }))
+    );
   }
 }
