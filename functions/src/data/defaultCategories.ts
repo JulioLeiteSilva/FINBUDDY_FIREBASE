@@ -1,9 +1,10 @@
 export const defaultCategories = [
-  { name: "Alimentação", type: "EXPENSE", icon: "LocalDining" },
-  { name: "Saúde", type: "EXPENSE", icon: "MedicalServices" },
-  { name: "Transporte", type: "EXPENSE", icon: "DirectionsCar" },
-  { name: "Lazer", type: "EXPENSE", icon: "SportsEsports" },
-  { name: "Salário", type: "INCOME", icon: "AttachMoney" },
-  { name: "Freelance", type: "INCOME", icon: "Work" },
-  { name: "Investimentos", type: "INCOME", icon: "TrendingUp" },
+  { name: "Alimentação", type: "EXPENSE", icon: "LocalDiningIcon" },
+  { name: "Saúde", type: "EXPENSE", icon: "MedicalServicesIcon" },
+  { name: "Transporte", type: "EXPENSE", icon: "DirectionsCarIcon" },
+  { name: "Lazer", type: "EXPENSE", icon: "SportsEsportsIcon" },
+  { name: "Salário", type: "INCOME", icon: "AttachMoneyIcon" },
+  { name: "Freelance", type: "INCOME", icon: "WorkIcon" },
+  { name: "Investimentos", type: "INCOME", icon: "TrendingUpIcon" },
+  { name: "Fatura de Cartao de credito", type: "EXPENSE", icon: "CreditCardIcon" },
 ];
