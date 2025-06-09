@@ -186,12 +186,12 @@ export class TransactionService {
     // --- PARCELAMENTO ---
     let parcelas = 1;
     let startDate = dayjs.tz(data.date, this.TIMEZONE);
-    let endDate = data.endDate
-      ? dayjs.tz(data.endDate, this.TIMEZONE)
-      : startDate;
 
-    if (endDate.isAfter(startDate, "day")) {
-      parcelas = endDate.diff(startDate, "month") + 1;
+    if (data.isRecurring && data.endDate) {
+      let endDate = dayjs.tz(data.endDate, this.TIMEZONE);
+      if (endDate.isAfter(startDate, "day")) {
+        parcelas = endDate.diff(startDate, "month") + 1;
+      }
     }
 
     const valorParcela = Math.round((data.value / parcelas) * 100) / 100;
@@ -650,6 +650,13 @@ export class TransactionService {
 
     // Atualiza o total da fatura
     const novoTotal = (invoice.total ?? card.limit) - data.value;
+
+    if (novoTotal < 0) {
+    throw new Error(
+      "Não é possível adicionar esta transação: o limite disponível da fatura seria excedido."
+    );
+  }
+  
     await CreditCardInvoiceRepository.update(uid, card.id, invoice.id, {
       total: novoTotal,
     });
