@@ -5,6 +5,10 @@ import { CreditCardInvoiceRepository } from "../repositories/CreditCardInvoiceRe
 import { TransactionRepository } from "../repositories/TransactionRepository";
 import { CreditCardRepository } from "../repositories/CreditCardRepository";
 import { TransactionService } from "./TransactionService";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export class CreditCardInvoiceService {
   static async create(
@@ -88,12 +92,13 @@ export class CreditCardInvoiceService {
       );
     }
 
+    console.log(dayjs().tz("America/Sao_Paulo").format("YYYY-MM-DDTHH"));
     // Cria transação de despesa referente ao pagamento da fatura
     await TransactionService.createIncomeOrExpenseTransaction(uid, {
       name: `FATURA DO MÊS ${invoice.month} DE ${invoice.year} DO CARTAO ${card.name}`,
       category: "Fatura de Cartao de credito",
-      value: invoice.total,
-      date: dayjs().toISOString(),
+      value: Number((card.limit - invoice.total).toFixed(2)), // Valor da fatura paga
+      date: dayjs().tz("America/Sao_Paulo").format("YYYY-MM-DDTHH"),
       type: "EXPENSE",
       isRecurring: false,
       isPaid: true,
@@ -102,7 +107,10 @@ export class CreditCardInvoiceService {
     });
   }
 
-  static async checkAndUpdateInvoicesStatus(uid: string, cardId: string): Promise<void> {
+  static async checkAndUpdateInvoicesStatus(
+    uid: string,
+    cardId: string
+  ): Promise<void> {
     const cards = await CreditCardRepository.getAll(uid);
     const card = cards.find((c) => c.id === cardId);
     if (!card) return;
@@ -115,9 +123,15 @@ export class CreditCardInvoiceService {
     for (const invoice of invoices) {
       if (invoice.status === InvoiceStatus.OPEN) {
         // Calcula a data de fechamento da fatura
-        const closingDate = dayjs(`${invoice.year}-${String(invoice.month).padStart(2, "0")}-${String(closingDay).padStart(2, "0")}`).tz("America/Sao_Paulo");
+        const closingDate = dayjs(
+          `${invoice.year}-${String(invoice.month).padStart(2, "0")}-${String(
+            closingDay
+          ).padStart(2, "0")}`
+        ).tz("America/Sao_Paulo");
         if (now.isAfter(closingDate, "day") || now.isSame(closingDate, "day")) {
-          await CreditCardInvoiceRepository.update(uid, cardId, invoice.id, { status: InvoiceStatus.CLOSED });
+          await CreditCardInvoiceRepository.update(uid, cardId, invoice.id, {
+            status: InvoiceStatus.CLOSED,
+          });
         }
       }
     }

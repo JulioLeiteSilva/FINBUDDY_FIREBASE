@@ -1,5 +1,5 @@
 import { db } from "../config/firebase";
-import { TransactionRequestDTO } from "../dto/TransactionRequestDTO";
+
 import { Transaction } from "../models/Transaction";
 
 export class TransactionRepository {
