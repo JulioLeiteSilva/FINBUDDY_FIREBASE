@@ -1,113 +1,76 @@
-import * as functions from "firebase-functions";
-import { UserController } from "../controllers/UserController";
+import { createAuthenticatedRoute } from "../utils/routeWrapper";
+import { UserService } from "../services/UserService";
 import { CompleteUserProfileDTO } from "../dto/CompleteUserProfileDTO";
 import { UserPreRegisterDTO } from "../dto/UserPreRegisterDTO";
 import { UserStatus } from "../enums/UserStatus";
-import { throwHttpsError } from "../utils/errorHandler";
 
 export const userRoutes = {
-  preRegisterUser: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
+  preRegisterUser: createAuthenticatedRoute<{ name: string }, any>(
+    async (request) => {
+      if (!request.auth?.token?.email) {
+        throw new Error("Email não encontrado no token de autenticação");
+      }
+      const userData: UserPreRegisterDTO = {
+        name: request.data.name,
+        email: request.auth.token.email,
+        status: UserStatus.PENDING,
+        createdAt: new Date(),
+      };
 
-    if (!auth?.uid || !auth.token.email) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "O usuário não está autenticado"
-      );
+      const result = await UserService.createPreRegisteredUser(request.uid, userData);
+
+      if (!result) {
+        throw new Error("Usuário já existe");
+      }
+      return result;
+    },
+    {
+      successMessage: "Usuário criado com sucesso",
+      requireData: true,
     }
+  ),
 
-    const uid = auth.uid;
-    const email = auth.token.email;
-    const name = data.name;
+  completeUserProfile: createAuthenticatedRoute<CompleteUserProfileDTO, any>(
+    async (request) => {
+      const result = await UserService.completeUserProfile(request.uid, request.data);
 
-    const dto: UserPreRegisterDTO = {
-      name,
-      email,
-      status: UserStatus.PENDING,
-      createdAt: new Date(),
-    };
+      if (!result) {
+        throw new Error("Usuário não encontrado");
+      }
 
-    try {
-      const user = await UserController.preRegisterUser(dto, uid);
-      return { message: "Usuário criado com sucesso", user };
-    } catch (error) {
-      return throwHttpsError(error as Error);
+      return result;
+    },
+    {
+      successMessage: "Cadastro completo com sucesso",
+      requireData: true,
     }
-  }),
+  ),
 
-  completeUserProfile: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
+  deactivateUser: createAuthenticatedRoute<void, any>(
+    async (request) => {
+      const result = await UserService.deactivateUser(request.uid);
 
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "O usuário não está autenticado"
-      );
+      if (!result) {
+        throw new Error("Usuário não encontrado");
+      }
+
+      return result;
+    },
+    {
+      successMessage: "Usuário desativado com sucesso",
     }
+  ),
 
-    const uid: string = auth.uid;
+  getUser: createAuthenticatedRoute<void, any>(
+    async (request) => {
+      const user = await UserService.getUserById(request.uid);
 
-    try {
-      const result = await UserController.completeUserProfile(
-        uid,
-        data as CompleteUserProfileDTO
-      );
-      return { message: "Cadastro completo com sucesso", user: result };
-    } catch (error) {
-      return throwHttpsError(error as Error);
-    }
-  }),
-
-  deactivateUser: functions.https.onCall(async (request) => {
-    const { auth } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "O usuário não está autenticado"
-      );
-    }
-
-    const uid = auth.uid;
-
-    try {
-      const result = await UserController.deactivateUser(uid);
-      return { message: "Usuário desativado com sucesso", user: result };
-    } catch (error) {
-      throw new functions.https.HttpsError(
-        "internal",
-        (error as Error).message
-      );
-    }
-  }),
-
-  getUser: functions.https.onCall(async (request) => {
-    const { auth } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "O usuário não está autenticado"
-      );
-    }
-
-    const uid: string = auth.uid;
-
-    try {
-      const user = await UserController.getUser(uid);
       if (!user) {
-        throw new functions.https.HttpsError(
-          "not-found",
-          "Usuário não encontrado"
-        );
+        throw new Error("Usuário não encontrado");
       }
 
       return user;
-    } catch (error) {
-      throw new functions.https.HttpsError(
-        "internal",
-        (error as Error).message
-      );
     }
-  }),
+  ),
 };
+
