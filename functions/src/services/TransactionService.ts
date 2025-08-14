@@ -546,9 +546,9 @@ export class TransactionService {
       isAdding
     );
 
-    await BankAccountService.updateBalance(uid, bankAccountId, {
-      balance: newBalance,
-    });
+    await BankAccountService.updateBalance(uid, bankAccountId,
+      newBalance
+    );
   }
 
   private static async validateBankAccountExists(
@@ -652,11 +652,11 @@ export class TransactionService {
     const novoTotal = (invoice.total ?? card.limit) - data.value;
 
     if (novoTotal < 0) {
-    throw new Error(
-      "Não é possível adicionar esta transação: o limite disponível da fatura seria excedido."
-    );
-  }
-  
+      throw new Error(
+        "Não é possível adicionar esta transação: o limite disponível da fatura seria excedido."
+      );
+    }
+
     await CreditCardInvoiceRepository.update(uid, card.id, invoice.id, {
       total: novoTotal,
     });

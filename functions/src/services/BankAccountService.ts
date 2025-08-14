@@ -1,3 +1,4 @@
+import { db } from "../config/firebase";
 import { CreateBankAccountDTO, CreateBankAccountSchema } from "../dto/BankAccountDTO";
 import { UpdateBankAccountDTO, UpdateBankAccountSchema } from "../dto/BankAccountDTO";
 import { BankAccountRepository } from "../repositories/BankAccountRepository";
@@ -21,9 +22,15 @@ export class BankAccountService {
       throw new Error(this.ERROR_MESSAGES.ACCOUNT_EXISTS);
     }
 
+    const id = db
+      .collection("users")
+      .doc(uid)
+      .collection("bankAccounts")
+      .doc().id;
+
     const accountData: BankAccount = {
       ...validatedData,
-      id: this.generateId(),
+      id: id,
       createdAt: new Date(),
       updatedAt: new Date(),
       isActive: true,
@@ -90,9 +97,5 @@ export class BankAccountService {
 
   static async getAll(uid: string): Promise<BankAccount[]> {
     return await BankAccountRepository.getAll(uid);
-  }
-
-  private static generateId(): string {
-    return Date.now().toString() + Math.random().toString(36).substr(2, 9);
   }
 }
