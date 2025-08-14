@@ -1,161 +1,68 @@
-import * as functions from "firebase-functions";
-import { BankAccountController } from "../controllers/BankAccountController";
-import { throwHttpsError } from "../utils/errorHandler";
-import { CreateBankAccountDTO } from "../dto/CreateBankAccountDTO";
-import { UpdateBankAccountDTO } from "../dto/UpdateBankAccountDTO";
-import { UpdateBankAccountBalanceDTO } from "../dto/UpdateBankAccountBalanceDTO";
-
+import { createAuthenticatedRoute } from "../utils/routeWrapper";
+import { BankAccountService } from "../services/BankAccountService";
+import { CreateBankAccountDTO, UpdateBankAccountDTO } from "../dto/BankAccountDTO";
 export const bankAccountRoutes = {
-  createBankAccount: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
+  createBankAccount: createAuthenticatedRoute<CreateBankAccountDTO, any>(
+    async (request) => {
+      return await BankAccountService.create(request.uid, request.data);
+    },
+    {
+      successMessage: "Conta bancária criada com sucesso",
+      requireData: true,
+    }
+  ),
 
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
+  updateBankAccount: createAuthenticatedRoute<UpdateBankAccountDTO & { id: string }, any>(
+    async (request) => {
+      const { id, ...updateData } = request.data;
+      return await BankAccountService.update(request.uid, id, updateData);
+    },
+    {
+      successMessage: "Conta bancária atualizada com sucesso",
+      requireData: true,
+    }
+  ),
+
+  updateBankAccountBalance: createAuthenticatedRoute<{ id: string; balance: number }, any>(
+    async (request) => {
+      return await BankAccountService.updateBalance(
+        request.uid,
+        request.data.id,
+        request.data.balance
       );
+    },
+    {
+      successMessage: "Saldo atualizado com sucesso",
+      requireData: true,
     }
+  ),
 
-    try {
-      const result = await BankAccountController.create(
-        auth.uid,
-        data as CreateBankAccountDTO
-      );
-      return { message: "Conta bancária criada com sucesso", account: result };
-    } catch (error) {
-      return throwHttpsError(error as Error);
+  deleteBankAccount: createAuthenticatedRoute<{ id: string }, void>(
+    async (request) => {
+      await BankAccountService.delete(request.uid, request.data.id);
+    },
+    {
+      successMessage: "Conta bancária excluída com sucesso",
+      requireData: true,
     }
-  }),
+  ),
 
-  updateBankAccount: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  getBankAccount: createAuthenticatedRoute<{ id: string }, any>(
+    async (request) => {
+      return await BankAccountService.get(request.uid, request.data.id);
+    },
+    {
+      requireData: true,
     }
+  ),
 
-    if (!data.id) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "ID da conta é obrigatório"
-      );
+  getAllBankAccounts: createAuthenticatedRoute<void, any>(
+    async (request) => {
+      const accounts = await BankAccountService.getAll(request.uid);
+      return { accounts };
+    },
+    {
+      successMessage: "Listagem de contas efetuada com sucesso!",
     }
-
-    try {
-      const result = await BankAccountController.update(
-        auth.uid,
-        data.id,
-        data as UpdateBankAccountDTO
-      );
-      return {
-        message: "Conta bancária atualizada com sucesso",
-        account: result,
-      };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Conta bancária");
-    }
-  }),
-
-  updateBankAccountBalance: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
-    }
-
-    if (!data.id) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "ID da conta é obrigatório"
-      );
-    }
-
-    try {
-      const balanceData: UpdateBankAccountBalanceDTO = {
-        balance: data.balance,
-      };
-      const result = await BankAccountController.updateBalance(
-        auth.uid,
-        data.id,
-        balanceData
-      );
-      return { message: "Saldo atualizado com sucesso", account: result };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Conta bancária");
-    }
-  }),
-
-  deleteBankAccount: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
-    }
-
-    if (!data.id) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "ID da conta é obrigatório"
-      );
-    }
-
-    try {
-      await BankAccountController.delete(auth.uid, data.id);
-      return { message: "Conta bancária excluída com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Conta bancária");
-    }
-  }),
-
-  getBankAccount: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
-    }
-
-    if (!data.id) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "ID da conta é obrigatório"
-      );
-    }
-
-    try {
-      const account = await BankAccountController.get(auth.uid, data.id);
-      return account;
-    } catch (error) {
-      return throwHttpsError(error as Error, "Conta bancária");
-    }
-  }),
-
-  getAllBankAccounts: functions.https.onCall(async (request) => {
-    const { auth } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
-    }
-
-    try {
-      const accounts = await BankAccountController.getAll(auth.uid);
-      return { message: "Listagem de contas efetuada com sucesso!", accounts };
-    } catch (error) {
-      return throwHttpsError(error as Error);
-    }
-  }),
+  ),
 };

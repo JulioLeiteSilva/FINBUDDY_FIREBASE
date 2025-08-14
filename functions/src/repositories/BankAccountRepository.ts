@@ -1,7 +1,5 @@
 import { db } from "../config/firebase";
-import { CreateBankAccountDTO } from "../dto/CreateBankAccountDTO";
-import { UpdateBankAccountBalanceDTO } from "../dto/UpdateBankAccountBalanceDTO";
-import { UpdateBankAccountDTO } from "../dto/UpdateBankAccountDTO";
+import { BankAccount } from "../models/BankAccount";
 
 export class BankAccountRepository {
   private static async validateOwnership(uid: string, accountId: string) {
@@ -21,8 +19,8 @@ export class BankAccountRepository {
 
   static async create(
     uid: string,
-    data: CreateBankAccountDTO & { id: string }
-  ) {
+    data: BankAccount
+  ): Promise<BankAccount> {
     const ref = db
       .collection("users")
       .doc(uid)
@@ -35,11 +33,16 @@ export class BankAccountRepository {
   static async update(
     uid: string,
     accountId: string,
-    data: UpdateBankAccountDTO | UpdateBankAccountBalanceDTO
-  ) {
+    data: Partial<BankAccount>
+  ): Promise<BankAccount> {
     const doc = await this.validateOwnership(uid, accountId);
     await doc.ref.update(data as { [key: string]: any });
-    return (await doc.ref.get()).data();
+    const updatedDoc = await doc.ref.get();
+    const updatedData = updatedDoc.data();
+    if (!updatedData) {
+      throw new Error("Erro ao recuperar dados atualizados da conta");
+    }
+    return updatedData as BankAccount;
   }
 
   static async delete(uid: string, accountId: string) {
@@ -53,17 +56,19 @@ export class BankAccountRepository {
     return { id: accountId };
   }
 
-  static async get(uid: string, accountId: string) {
+  static async get(uid: string, accountId: string): Promise<BankAccount | null> {
     const doc = await this.validateOwnership(uid, accountId);
-    return doc.data();
+    const data = doc.data();
+    return data ? (data as BankAccount) : null;
   }
 
-  static async getAll(uid: string) {
+  static async getAll(uid: string): Promise<BankAccount[]> {
     const snapshot = await db
       .collection("users")
       .doc(uid)
       .collection("bankAccounts")
       .get();
-    return snapshot.docs.map((doc) => doc.data());
+    return snapshot.docs.map((doc) => doc.data() as BankAccount);
   }
 }
+

@@ -1,68 +1,98 @@
-import { db } from "../config/firebase";
-import { CreateBankAccountDTO } from "../dto/CreateBankAccountDTO";
-import { UpdateBankAccountBalanceDTO } from "../dto/UpdateBankAccountBalanceDTO";
-import { UpdateBankAccountDTO } from "../dto/UpdateBankAccountDTO";
+import { CreateBankAccountDTO, CreateBankAccountSchema } from "../dto/BankAccountDTO";
+import { UpdateBankAccountDTO, UpdateBankAccountSchema } from "../dto/BankAccountDTO";
 import { BankAccountRepository } from "../repositories/BankAccountRepository";
+import { BankAccount } from "../models/BankAccount";
 
 export class BankAccountService {
-  static async create(uid: string, data: CreateBankAccountDTO) {
-    const id = db
-      .collection("users")
-      .doc(uid)
-      .collection("bankAccounts")
-      .doc().id;
-    return await BankAccountRepository.create(uid, { ...data, id });
-  }
+  private static readonly ERROR_MESSAGES = {
+    ACCOUNT_NOT_FOUND: "Conta bancária não encontrada",
+    ACCOUNT_EXISTS: "Já existe uma conta com este nome",
+    HAS_TRANSACTIONS: "Não é possível deletar conta com transações vinculadas",
+    INSUFFICIENT_BALANCE: "Saldo insuficiente",
+  };
+  static async create(uid: string, data: CreateBankAccountDTO): Promise<BankAccount> {
+    const validatedData = CreateBankAccountSchema.parse(data);
+    const existingAccounts = await BankAccountRepository.getAll(uid);
+    const nameExists = existingAccounts.some(
+      account => account.name.toLowerCase() === validatedData.name.toLowerCase()
+    );
 
-  static async update(
-    uid: string,
-    accountId: string,
-    data: UpdateBankAccountDTO
-  ) {
-    try {
-      const result = await BankAccountRepository.update(uid, accountId, data);
-      if (!result) {
-        throw new Error("Erro ao atualizar conta bancária");
-      }
-      return result;
-    } catch (error) {
-      throw error;
+    if (nameExists) {
+      throw new Error(this.ERROR_MESSAGES.ACCOUNT_EXISTS);
     }
+
+    const accountData: BankAccount = {
+      ...validatedData,
+      id: this.generateId(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isActive: true,
+    };
+
+    return await BankAccountRepository.create(uid, accountData);
   }
 
-  static async updateBalance(
-    uid: string,
-    accountId: string,
-    data: UpdateBankAccountBalanceDTO
-  ) {
-    try {
-      const result = await BankAccountRepository.update(uid, accountId, data);
-      if (!result) {
-        throw new Error("Erro ao atualizar saldo da conta bancária");
-      }
-      return result;
-    } catch (error) {
-      throw error;
+  static async update(uid: string, accountId: string, data: UpdateBankAccountDTO): Promise<BankAccount> {
+    const validatedData = UpdateBankAccountSchema.parse(data);
+    const existing = await BankAccountRepository.get(uid, accountId);
+    if (!existing) {
+      throw new Error(this.ERROR_MESSAGES.ACCOUNT_NOT_FOUND);
     }
-  }
 
-  static async delete(uid: string, accountId: string) {
-    return await BankAccountRepository.delete(uid, accountId);
-  }
+    if (validatedData.name) {
+      const existingAccounts = await BankAccountRepository.getAll(uid);
+      const nameExists = existingAccounts.some(
+        account =>
+          account.id !== accountId &&
+          account.name.toLowerCase() === validatedData.name!.toLowerCase()
+      );
 
-  static async get(uid: string, accountId: string) {
-    try {
-      const result = await BankAccountRepository.get(uid, accountId);
-      if (!result) {
-        throw new Error("Conta bancária não encontrada");
+      if (nameExists) {
+        throw new Error(this.ERROR_MESSAGES.ACCOUNT_EXISTS);
       }
-      return result;
-    } catch (error) {
-      throw error;
     }
+    const updateData = {
+      ...validatedData,
+      updatedAt: new Date(),
+    };
+
+    return await BankAccountRepository.update(uid, accountId, updateData);
   }
 
-  static async getAll(uid: string) {
+  static async updateBalance(uid: string, accountId: string, newBalance: number): Promise<BankAccount> {
+    const existing = await BankAccountRepository.get(uid, accountId);
+    if (!existing) {
+      throw new Error(this.ERROR_MESSAGES.ACCOUNT_NOT_FOUND);
+    }
+
+    return await BankAccountRepository.update(uid, accountId, {
+      balance: newBalance,
+      updatedAt: new Date(),
+    });
+  }
+
+  static async delete(uid: string, accountId: string): Promise<void> {
+    const existing = await BankAccountRepository.get(uid, accountId);
+    if (!existing) {
+      throw new Error(this.ERROR_MESSAGES.ACCOUNT_NOT_FOUND);
+    }
+
+    await BankAccountRepository.delete(uid, accountId);
+  }
+
+  static async get(uid: string, accountId: string): Promise<BankAccount> {
+    const account = await BankAccountRepository.get(uid, accountId);
+    if (!account) {
+      throw new Error(this.ERROR_MESSAGES.ACCOUNT_NOT_FOUND);
+    }
+    return account;
+  }
+
+  static async getAll(uid: string): Promise<BankAccount[]> {
     return await BankAccountRepository.getAll(uid);
+  }
+
+  private static generateId(): string {
+    return Date.now().toString() + Math.random().toString(36).substr(2, 9);
   }
 }
