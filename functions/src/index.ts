@@ -1,5 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
+
 import { userRoutes } from "./routes/UserRoutes";
 import { bankAccountRoutes } from "./routes/BankAccountRoutes";
 import { globalCategoryRoutes } from "./routes/GlobalCategoryRoutes";
@@ -8,16 +9,18 @@ import { transactionRoutes } from "./routes/TransactionRoutes";
 import { creditCardRoutes } from "./routes/CreditCardRoutes";
 import { creditCardInvoiceRoutes } from "./routes/CreditCardInvoiceRoutes";
 
-// Exporta todas as funções agrupadas sob o namespace `user`
+import { createDocsApp } from "./docs/swagger-setup";
+
 export const user = userRoutes;
 export const bank = bankAccountRoutes;
 export const globalCategory = globalCategoryRoutes;
-export const category = categoryRoutes
+export const category = categoryRoutes;
 export const transaction = transactionRoutes;
 export const creditCard = creditCardRoutes;
 export const creditCardInvoice = creditCardInvoiceRoutes;
 
-// Função de teste opcional
+export const docs = onRequest(createDocsApp());
+
 export const helloWorld = onRequest((request, response) => {
   logger.info("Hello logs!", { structuredData: true });
   response.send("Hello from Firebase!");
