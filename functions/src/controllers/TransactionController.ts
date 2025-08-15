@@ -1,111 +1,69 @@
-import { z } from "zod";
-import {
-  TransactionRequestDTO,
-  TransactionRequestSchema,
-} from "../dto/TransactionRequestDTO";
-import { TransactionService } from "../services/TransactionService";
+import { TransactionRequestDTO } from "../dto/TransactionRequestDTO";
+import { TransactionService } from "../services/transaction/TransactionService";
+import { AuthenticatedRequest } from "../utils/routeWrapper";
 
 export class TransactionController {
-  static async createIncomeOrExpense(uid: string, data: TransactionRequestDTO) {
-    try {
-      const validatedData = TransactionRequestSchema.parse(data);
-      return await TransactionService.createIncomeOrExpenseTransaction(
-        uid,
-        validatedData
-      );
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errors = error.errors.map((err) => ({
-          field: err.path.join("."),
-          message: err.message,
-        }));
-        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
-      }
-      throw error;
-    }
-  }
-  static async createInvoice(uid: string, data: TransactionRequestDTO) {
-    try {
-      const validatedData = TransactionRequestSchema.parse(data);
-      return await TransactionService.createInvoiceTransaction(
-        uid,
-        validatedData
-      );
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errors = error.errors.map((err) => ({
-          field: err.path.join("."),
-          message: err.message,
-        }));
-        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
-      }
-      throw error;
-    }
+  static async createIncomeOrExpense(request: AuthenticatedRequest<TransactionRequestDTO>) {
+    return await TransactionService.createIncomeOrExpenseTransaction(request.uid, request.data);
   }
 
-  static async updateTransaction(
-    uid: string,
-    transactionId: string,
-    data: TransactionRequestDTO
+  static async createInvoice(request: AuthenticatedRequest<TransactionRequestDTO>) {
+    return await TransactionService.createInvoiceTransaction(request.uid, request.data);
+  }
+
+  static async updateTransaction(request: AuthenticatedRequest<TransactionRequestDTO & { id: string }>) {
+    if (!request.data.id) throw new Error("ID da transação é obrigatório");
+    return await TransactionService.update(request.uid, request.data.id, request.data);
+  }
+
+  static async updateInvoiceTransactions(request: AuthenticatedRequest<TransactionRequestDTO>) {
+    return await TransactionService.updateInvoiceTransactions(request.uid, request.data);
+  }
+
+  static async deleteIncomeOrExpenseTransaction(request: AuthenticatedRequest<{ id: string }>) {
+    if (!request.data.id) throw new Error("ID da transação é obrigatório");
+    await TransactionService.deleteIncomeOrExpenseTransaction(request.uid, request.data.id);
+  }
+
+  static async deleteInvoiceTransaction(request: AuthenticatedRequest<{ id: string }>) {
+    if (!request.data.id) throw new Error("ID da transação é obrigatório");
+    await TransactionService.deleteInvoiceTransaction(request.uid, request.data.id);
+  }
+
+  static async getAllIncomeOrExpense(request: AuthenticatedRequest<void>) {
+    return await TransactionService.getAllIncomeOrExpense(request.uid);
+  }
+
+  static async getAllInvoices(request: AuthenticatedRequest<void>) {
+    return await TransactionService.getAllInvoices(request.uid);
+  }
+
+  static async deleteRecurringTransaction(request: AuthenticatedRequest<{ id: string }>) {
+    if (!request.data.id) throw new Error("ID da transação é obrigatório");
+    return await TransactionService.deleteRecurringTransactions(request.uid, request.data.id);
+  }
+
+  static async updateRecurringTransactionGroup(
+    request: AuthenticatedRequest<Partial<TransactionRequestDTO> & { id: string }>
   ) {
-    if (!transactionId) throw new Error("não encontrado");
+    if (!request.data.id) throw new Error("ID da transação é obrigatório");
 
-    try {
-      const validatedData = TransactionRequestSchema.parse(data);
-      return await TransactionService.update(uid, transactionId, validatedData);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errors = error.errors.map((err) => ({
-          field: err.path.join("."),
-          message: err.message,
-        }));
-        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
-      }
-      throw error;
-    }
-  }
-  static async updateInvoiceTransactions(
-    uid: string,
-    data: TransactionRequestDTO
-  ) {
-    try {
-      const validatedData = TransactionRequestSchema.parse(data);
-      return await TransactionService.updateInvoiceTransactions(
-        uid,
-        validatedData
-      );
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errors = error.errors.map((err) => ({
-          field: err.path.join("."),
-          message: err.message,
-        }));
-        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
-      }
-      throw error;
-    }
+    const { id, ...updateData } = request.data;
+    return await TransactionService.updateRecurringTransactionGroup(request.uid, id, updateData);
   }
 
-  static async deleteIncomeOrExpenseTransaction(uid: string, id: string) {
-    await TransactionService.deleteIncomeOrExpenseTransaction(uid, id);
+  static async markRecurringTransactionAsPaid(request: AuthenticatedRequest<{ id: string }>) {
+    if (!request.data.id) throw new Error("ID da transação é obrigatório");
+    return await TransactionService.markRecurringTransactionAsPaid(request.uid, request.data.id);
   }
 
-  static async deleteInvoiceTransaction(uid: string, id: string) {
-    await TransactionService.deleteInvoiceTransaction(uid, id);
+  static async markRecurringTransactionAsUnpaid(request: AuthenticatedRequest<{ id: string }>) {
+    if (!request.data.id) throw new Error("ID da transação é obrigatório");
+    return await TransactionService.markRecurringTransactionAsUnpaid(request.uid, request.data.id);
   }
 
-  static async getAllIncomeOrExpense(uid: string) {
-    return await TransactionService.getAllIncomeOrExpense(uid);
-  }
-  static async getAllInvoices(uid: string) {
-    return await TransactionService.getAllInvoices(uid);
-  }
-
-  static async deleteRecurringTransaction(uid: string, transactionId: string) {
-    if (!transactionId) throw new Error("não encontrado");
-    return await TransactionService.deleteRecurringTransactions(
-      uid,
-      transactionId
-    );
+  static async payInvoiceInstallment(request: AuthenticatedRequest<{ id: string }>) {
+    if (!request.data.id) throw new Error("ID da transação é obrigatório");
+    return await TransactionService.payInvoiceInstallment(request.uid, request.data.id);
   }
 }

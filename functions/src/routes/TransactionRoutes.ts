@@ -1,176 +1,111 @@
-import * as functions from "firebase-functions";
+import { createAuthenticatedRoute } from "../utils/routeWrapper";
 import { TransactionController } from "../controllers/TransactionController";
-import { throwHttpsError } from "../utils/errorHandler";
 import { TransactionRequestDTO } from "../dto/TransactionRequestDTO";
 
 export const transactionRoutes = {
-  createIncomeOrExpense: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
+  createIncomeOrExpense: createAuthenticatedRoute<TransactionRequestDTO, void>(
+    TransactionController.createIncomeOrExpense,
+    {
+      successMessage: "Transação criada com sucesso",
+      requireData: true,
+    }
+  ),
 
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  createInvoice: createAuthenticatedRoute<TransactionRequestDTO, void>(
+    TransactionController.createInvoice,
+    {
+      successMessage: "Transação de fatura criada com sucesso",
+      requireData: true,
     }
+  ),
 
-    try {
-      await TransactionController.createIncomeOrExpense(
-        auth.uid,
-        data as TransactionRequestDTO
-      );
-      return { message: "Transação criada com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
+  updateTransaction: createAuthenticatedRoute<TransactionRequestDTO & { id: string }, void>(
+    TransactionController.updateTransaction,
+    {
+      successMessage: "Transação atualizada com sucesso",
+      requireData: true,
     }
-  }),
+  ),
 
-  createInvoice: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  updateInvoiceTransactions: createAuthenticatedRoute<TransactionRequestDTO, void>(
+    TransactionController.updateInvoiceTransactions,
+    {
+      successMessage: "Transações de fatura atualizadas com sucesso",
+      requireData: true,
     }
-    try {
-      await TransactionController.createInvoice(
-        auth.uid,
-        data as TransactionRequestDTO
-      );
-      return { message: "Transação criada com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
-    }
-  }),
+  ),
 
-  updateTransaction: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
+  deleteIncomeOrExpenseTransaction: createAuthenticatedRoute<{ id: string }, void>(
+    TransactionController.deleteIncomeOrExpenseTransaction,
+    {
+      successMessage: "Transação excluída com sucesso",
+      requireData: true,
+    }
+  ),
 
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  deleteInvoiceTransaction: createAuthenticatedRoute<{ id: string }, void>(
+    TransactionController.deleteInvoiceTransaction,
+    {
+      successMessage: "Transação de fatura excluída com sucesso",
+      requireData: true,
     }
+  ),
 
-    try {
-      await TransactionController.updateTransaction(
-        auth.uid,
-        data.id,
-        data as TransactionRequestDTO
-      );
-      return { message: "Transação atualizada com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
+  deleteRecurringTransaction: createAuthenticatedRoute<{ id: string }, void>(
+    TransactionController.deleteRecurringTransaction,
+    {
+      successMessage: "Transações recorrentes excluídas com sucesso",
+      requireData: true,
     }
-  }),
+  ),
 
-  deleteIncomeOrExpenseTransaction: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  getAllIncomeOrExpense: createAuthenticatedRoute<void, any>(
+    TransactionController.getAllIncomeOrExpense,
+    {
+      successMessage: "Transações recuperadas com sucesso",
     }
-    try {
-      await TransactionController.deleteIncomeOrExpenseTransaction(
-        auth.uid,
-        data.id
-      );
-      return { message: "Transação excluída com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
-    }
-  }),
+  ),
 
-  deleteInvoiceTransaction: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  getAllInvoices: createAuthenticatedRoute<void, any>(
+    TransactionController.getAllInvoices,
+    {
+      successMessage: "Faturas recuperadas com sucesso",
     }
-    try {
-      await TransactionController.deleteInvoiceTransaction(auth.uid, data.id);
-      return { message: "Transação de fatura excluída com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
-    }
-  }),
+  ),
 
-  getAllIncomeOrExpense: functions.https.onCall(async (request) => {
-    const { auth } = request;
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  updateRecurringTransactionGroup: createAuthenticatedRoute<
+    Partial<TransactionRequestDTO> & { id: string },
+    void
+  >(
+    TransactionController.updateRecurringTransactionGroup,
+    {
+      successMessage: "Grupo de transações recorrentes atualizado com sucesso",
+      requireData: true,
     }
-    try {
-      const transactions = await TransactionController.getAllIncomeOrExpense(
-        auth.uid
-      );
-      return { message: "Transações recuperadas com sucesso", transactions };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
-    }
-  }),
+  ),
 
-  getAllInvoices: functions.https.onCall(async (request) => {
-    const { auth } = request;
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  markRecurringTransactionAsPaid: createAuthenticatedRoute<{ id: string }, void>(
+    TransactionController.markRecurringTransactionAsPaid,
+    {
+      successMessage: "Transação recorrente marcada como paga",
+      requireData: true,
     }
-    try {
-      const transactions = await TransactionController.getAllInvoices(auth.uid);
-      return { message: "Transações recuperadas com sucesso", transactions };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
+  ),
+
+  markRecurringTransactionAsUnpaid: createAuthenticatedRoute<{ id: string }, void>(
+    TransactionController.markRecurringTransactionAsUnpaid,
+    {
+      successMessage: "Transação recorrente marcada como não paga",
+      requireData: true,
     }
-  }),
+  ),
 
-  deleteRecurringTransaction: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
+  payInvoiceInstallment: createAuthenticatedRoute<{ id: string }, void>(
+    TransactionController.payInvoiceInstallment,
+    {
+      successMessage: "Parcela da fatura marcada como paga",
+      requireData: true,
     }
-
-    try {
-      await TransactionController.deleteRecurringTransaction(auth.uid, data.id);
-      return { message: "Transações recorrentes excluídas com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
-    }
-  }),
-
-  updateInvoiceTransactions: functions.https.onCall(async (request) => {
-    const { auth, data } = request;
-
-    if (!auth?.uid) {
-      throw new functions.https.HttpsError(
-        "unauthenticated",
-        "Usuário não autenticado"
-      );
-    }
-
-    try {
-      await TransactionController.updateInvoiceTransactions(
-        auth.uid,
-        data as TransactionRequestDTO
-      );
-      return { message: "Transações de fatura atualizadas com sucesso" };
-    } catch (error) {
-      return throwHttpsError(error as Error, "Transação");
-    }
-  }),
+  ),
 };
+
