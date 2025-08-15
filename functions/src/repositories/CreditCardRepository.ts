@@ -2,7 +2,7 @@ import { db } from "../config/firebase";
 import { CreditCard } from "../models/CreditCard";
 
 export class CreditCardRepository {
-  static async create(uid: string, card: CreditCard) {
+  static async create(uid: string, card: CreditCard): Promise<void> {
     await db
       .collection("users")
       .doc(uid)
@@ -11,7 +11,7 @@ export class CreditCardRepository {
       .set(card);
   }
 
-  static async update(uid: string, cardId: string, data: Partial<CreditCard>) {
+  static async update(uid: string, cardId: string, data: Partial<CreditCard>): Promise<void> {
     await db
       .collection("users")
       .doc(uid)
@@ -20,7 +20,7 @@ export class CreditCardRepository {
       .update(data);
   }
 
-  static async delete(uid: string, cardId: string) {
+  static async delete(uid: string, cardId: string): Promise<void> {
     await db
       .collection("users")
       .doc(uid)
@@ -37,6 +37,7 @@ export class CreditCardRepository {
       .get();
     return snapshot.docs.map((doc) => doc.data() as CreditCard);
   }
+
   static async get(uid: string, cardId: string): Promise<CreditCard | null> {
     const ref = db
       .collection("users")

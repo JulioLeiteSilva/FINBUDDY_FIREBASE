@@ -1,39 +1,22 @@
-import { z } from "zod";
-import { CreditCardRequestDTO, CreditCardRequestSchema } from "../dto/CreditCardRequestDTO";
+import { CreditCardRequestDTO } from "../dto/CreditCardRequestDTO";
 import { CreditCardService } from "../services/CreditCardService";
+import { AuthenticatedRequest } from "../utils/routeWrapper";
 
 export class CreditCardController {
-  static async create(uid: string, data: CreditCardRequestDTO) {
-    try {
-      const validated = CreditCardRequestSchema.parse(data);
-
-      
-      await CreditCardService.create(uid, validated);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        throw new Error(`Validation failed: ${JSON.stringify(error.errors)}`);
-      }
-      throw error;
-    }
+  static async create(request: AuthenticatedRequest<CreditCardRequestDTO>) {
+    return await CreditCardService.create(request.uid, request.data);
   }
 
-  static async update(uid: string, cardId: string, data: CreditCardRequestDTO) {
-    try {
-      const validated = CreditCardRequestSchema.partial().parse(data);
-      await CreditCardService.update(uid, cardId, validated);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        throw new Error(`Validation failed: ${JSON.stringify(error.errors)}`);
-      }
-      throw error;
-    }
+  static async update(request: AuthenticatedRequest<CreditCardRequestDTO & { id: string }>) {
+    const { id, ...updateData } = request.data;
+    return await CreditCardService.update(request.uid, id, updateData);
   }
 
-  static async delete(uid: string, cardId: string) {
-    await CreditCardService.delete(uid, cardId);
+  static async delete(request: AuthenticatedRequest<{ id: string }>) {
+    return await CreditCardService.delete(request.uid, request.data.id);
   }
 
-  static async getAll(uid: string) {
-    return await CreditCardService.getAll(uid);
+  static async getAll(request: AuthenticatedRequest<void>) {
+    return await CreditCardService.getAll(request.uid);
   }
 }

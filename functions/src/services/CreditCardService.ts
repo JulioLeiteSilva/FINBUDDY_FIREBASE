@@ -1,86 +1,60 @@
+import { z } from "zod";
 import { db } from "../config/firebase";
-import { CreditCardRequestDTO } from "../dto/CreditCardRequestDTO";
-import { CreditCard } from "../models/CreditCard";
-import { CreditCardInvoiceRepository } from "../repositories/CreditCardInvoiceRepository";
+import { CreditCardRequestDTO, CreditCardRequestSchema } from "../dto/CreditCardRequestDTO";
 import { CreditCardRepository } from "../repositories/CreditCardRepository";
+import { CreditCardInvoiceRepository } from "../repositories/CreditCardInvoiceRepository";
 import { BankAccountService } from "./BankAccountService";
+import { CreditCard } from "../models/CreditCard";
 
 export class CreditCardService {
-  static async create(uid: string, data: CreditCardRequestDTO): Promise<void> {
+  private static readonly ERROR_MESSAGES = {
+    CARD_NOT_FOUND: "Cartão de crédito não encontrado",
+    BANK_ACCOUNT_NOT_FOUND: "Conta bancária não encontrada",
+    LIMIT_CHANGE_NEGATIVE_TOTAL: "A alteração do limite deixaria uma fatura com total negativo",
+    CANNOT_DELETE_CARD_WITH_TRANSACTIONS: "Não é possível excluir o cartão: existe fatura com total diferente do limite do cartão",
+  };
+
+  static async create(uid: string, data: CreditCardRequestDTO): Promise<CreditCard> {
+    const validatedData = this.validateCreditCardData(data);
+    await this.validateBankAccountExists(uid, validatedData.bankAccountId);
+
     const id = db
       .collection("users")
       .doc(uid)
       .collection("creditCards")
       .doc().id;
+
     const creditCard: CreditCard = {
       id,
-      ...data,
+      ...validatedData,
     };
 
-    await this.validateBankAccountExists(uid, creditCard.bankAccountId);
-
     await CreditCardRepository.create(uid, creditCard);
+    return creditCard;
   }
 
-  static async update(
-    uid: string,
-    cardId: string,
-    data: Partial<CreditCardRequestDTO>
-  ): Promise<void> {
-    await this.validateBankAccountExists(uid, data.bankAccountId!);
+  static async update(uid: string, cardId: string, data: Partial<CreditCardRequestDTO>): Promise<void> {
+    const validatedData = this.validatePartialCreditCardData(data);
 
-    const card = await CreditCardRepository.get(uid, cardId);
-    if (!card) throw new Error("Cartão de crédito não encontrado");
-
-    if (data.limit !== undefined && data.limit !== card.limit) {
-      const diff = data.limit - card.limit;
-
-      // Busca todas as invoices OPEN
-      const invoices = await CreditCardInvoiceRepository.getAll(uid, cardId);
-      const openInvoices = invoices.filter((i) => i.status === "OPEN");
-
-      // Verifica se alguma ficaria negativa
-      for (const invoice of openInvoices) {
-        const novoTotal = (invoice.total ?? 0) + diff;
-        if (novoTotal < 0) {
-          throw new Error(
-            `A alteração do limite deixaria a fatura ${invoice.id} com total negativo.`
-          );
-        }
-      }
-
-      // Atualiza os totais das invoices
-      for (const invoice of openInvoices) {
-        const novoTotal = (invoice.total ?? 0) + diff;
-        await CreditCardInvoiceRepository.update(uid, cardId, invoice.id, {
-          total: novoTotal,
-        });
-      }
+    if (validatedData.bankAccountId) {
+      await this.validateBankAccountExists(uid, validatedData.bankAccountId);
     }
 
-    await CreditCardRepository.update(uid, cardId, data);
-  }
+    const card = await CreditCardRepository.get(uid, cardId);
+    if (!card) throw new Error(this.ERROR_MESSAGES.CARD_NOT_FOUND);
+    if (validatedData.limit !== undefined && validatedData.limit !== card.limit) {
+      await this.handleLimitChange(uid, cardId, card.limit, validatedData.limit);
+    }
 
+    await CreditCardRepository.update(uid, cardId, validatedData);
+  }
   static async delete(uid: string, cardId: string): Promise<void> {
     await this.validateCreditCardExists(uid, cardId);
 
-    // Busca o cartão para pegar o limite atual
     const card = await CreditCardRepository.get(uid, cardId);
-    if (!card) throw new Error("Cartão de crédito não encontrado");
+    if (!card) throw new Error(this.ERROR_MESSAGES.CARD_NOT_FOUND);
 
-    // Busca todas as invoices do cartão
-    const invoices = await CreditCardInvoiceRepository.getAll(uid, cardId);
-
-    // Verifica se alguma invoice tem total diferente do limite do cartão
-    const invoiceComTotalDiferente = invoices.find(
-      (invoice) => Number(invoice.total ?? 0) !== Number(card.limit)
-    );
-    if (invoiceComTotalDiferente) {
-      throw new Error(
-        `Não é possível excluir o cartão: existe fatura (${invoiceComTotalDiferente.id}) com total diferente do limite do cartão.`
-      );
-    }
-
+    await this.validateCardCanBeDeleted(uid, cardId, card.limit);
     await CreditCardRepository.delete(uid, cardId);
   }
 
@@ -88,21 +62,86 @@ export class CreditCardService {
     return await CreditCardRepository.getAll(uid);
   }
 
-  private static async validateBankAccountExists(
-    uid: string,
-    bankAccountId: string
-  ): Promise<void> {
-    const bankAccount = await BankAccountService.get(uid, bankAccountId);
-    if (!bankAccount) {
-      throw new Error("não encontrado");
+  static async get(uid: string, cardId: string): Promise<CreditCard> {
+    const card = await CreditCardRepository.get(uid, cardId);
+    if (!card) throw new Error(this.ERROR_MESSAGES.CARD_NOT_FOUND);
+    return card;
+  }
+
+  private static validateCreditCardData(data: CreditCardRequestDTO): CreditCardRequestDTO {
+    try {
+      return CreditCardRequestSchema.parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
     }
   }
 
-  private static async validateCreditCardExists(
-    uid: string,
-    cardId: string
-  ): Promise<void> {
+  private static validatePartialCreditCardData(data: Partial<CreditCardRequestDTO>): Partial<CreditCardRequestDTO> {
+    try {
+      return CreditCardRequestSchema.partial().parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const errors = error.errors.map((err) => ({
+          field: err.path.join("."),
+          message: err.message,
+        }));
+        throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
+      }
+      throw error;
+    }
+  }
+
+  private static async handleLimitChange(uid: string, cardId: string, oldLimit: number, newLimit: number): Promise<void> {
+    const diff = newLimit - oldLimit;
+
+    const invoices = await CreditCardInvoiceRepository.getAll(uid, cardId);
+    const openInvoices = invoices.filter((i) => i.status === "OPEN");
+
+    for (const invoice of openInvoices) {
+      const newTotal = (invoice.total ?? 0) + diff;
+      if (newTotal < 0) {
+        throw new Error(`${this.ERROR_MESSAGES.LIMIT_CHANGE_NEGATIVE_TOTAL}: Fatura ${invoice.month}/${invoice.year}`);
+      }
+    }
+
+    for (const invoice of openInvoices) {
+      const newTotal = (invoice.total ?? 0) + diff;
+      await CreditCardInvoiceRepository.update(uid, cardId, invoice.id, {
+        total: newTotal,
+      });
+    }
+  }
+
+  private static async validateCardCanBeDeleted(uid: string, cardId: string, cardLimit: number): Promise<void> {
+    const invoices = await CreditCardInvoiceRepository.getAll(uid, cardId);
+
+    const invoiceWithDifferentTotal = invoices.find(
+      (invoice) => Number(invoice.total ?? 0) !== Number(cardLimit)
+    );
+
+    if (invoiceWithDifferentTotal) {
+      throw new Error(
+        `${this.ERROR_MESSAGES.CANNOT_DELETE_CARD_WITH_TRANSACTIONS}: Fatura ${invoiceWithDifferentTotal.month}/${invoiceWithDifferentTotal.year}`
+      );
+    }
+  }
+
+  private static async validateBankAccountExists(uid: string, bankAccountId: string): Promise<void> {
+    const bankAccount = await BankAccountService.get(uid, bankAccountId);
+    if (!bankAccount) {
+      throw new Error(this.ERROR_MESSAGES.BANK_ACCOUNT_NOT_FOUND);
+    }
+  }
+
+  private static async validateCreditCardExists(uid: string, cardId: string): Promise<void> {
     const card = await CreditCardRepository.get(uid, cardId);
-    if (!card) throw new Error("Cartão de crédito não encontrado");
+    if (!card) throw new Error(this.ERROR_MESSAGES.CARD_NOT_FOUND);
   }
 }

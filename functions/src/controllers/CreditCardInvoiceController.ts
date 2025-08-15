@@ -1,39 +1,30 @@
 import { CreditCardInvoice } from "../models/CreditCardInvoice";
 import { CreditCardInvoiceService } from "../services/CreditCardInvoiceService";
+import { AuthenticatedRequest } from "../utils/routeWrapper";
 
 export class CreditCardInvoiceController {
-  static async create(uid: string, cardId: string, invoice: CreditCardInvoice) {
-    await CreditCardInvoiceService.create(uid, cardId, invoice);
+  static async create(request: AuthenticatedRequest<{ cardId: string; invoice: CreditCardInvoice }>) {
+    const { uid, data } = request;
+    await CreditCardInvoiceService.create(uid, data.cardId, data.invoice);
   }
 
-  static async update(
-    uid: string,
-    cardId: string,
-    invoiceId: string,
-    data: Partial<CreditCardInvoice>
-  ) {
-    await CreditCardInvoiceService.update(uid, cardId, invoiceId, data);
+  static async update(request: AuthenticatedRequest<{ cardId: string; invoiceId: string; data: Partial<CreditCardInvoice> }>) {
+    const { uid, data } = request;
+    await CreditCardInvoiceService.update(uid, data.cardId, data.invoiceId, data.data);
   }
 
-  static async delete(uid: string, cardId: string, invoiceId: string) {
-    await CreditCardInvoiceService.delete(uid, cardId, invoiceId);
+  static async delete(request: AuthenticatedRequest<{ cardId: string; invoiceId: string }>) {
+    const { uid, data } = request;
+    await CreditCardInvoiceService.delete(uid, data.cardId, data.invoiceId);
   }
 
-  static async getAll(uid: string, cardId: string) {
-    return await CreditCardInvoiceService.getAll(uid, cardId);
+  static async getAll(request: AuthenticatedRequest<{ cardId: string }>) {
+    const { uid, data } = request;
+    return await CreditCardInvoiceService.getAll(uid, data.cardId);
   }
 
-  static async payInvoice(
-    uid: string,
-    cardId: string,
-    invoiceId: string,
-    bankAccountId: string
-  ): Promise<void> {
-    await CreditCardInvoiceService.payInvoice(
-      uid,
-      cardId,
-      invoiceId,
-      bankAccountId
-    );
+  static async payInvoice(request: AuthenticatedRequest<{ cardId: string; invoiceId: string; bankAccountId: string }>) {
+    const { uid, data } = request;
+    await CreditCardInvoiceService.payInvoice(uid, data.cardId, data.invoiceId, data.bankAccountId);
   }
 }
