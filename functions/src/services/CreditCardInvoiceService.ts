@@ -9,6 +9,7 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { CreditCard } from "../models/CreditCard";
 import { Transaction } from "../models/Transaction";
+import { CreditCardService } from "./CreditCardService";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -44,16 +45,12 @@ export class CreditCardInvoiceService {
 
   static async payInvoice(uid: string, cardId: string, invoiceId: string, bankAccountId: string): Promise<void> {
     const invoice = await this.getInvoice(uid, cardId, invoiceId);
-    if (invoice.status !== InvoiceStatus.CLOSED) {
-      throw new Error(this.ERROR_MESSAGES.CANNOT_PAY_OPEN_INVOICE);
-    }
+    const card = await this.getCreditCard(uid, cardId);
 
     await CreditCardInvoiceRepository.update(uid, cardId, invoiceId, {
       status: InvoiceStatus.PAID,
       bankAccountId,
     });
-
-    const card = await this.getCreditCard(uid, cardId);
 
     const invoiceTransactions = await this.getInvoiceTransactions(uid, invoiceId, cardId);
     if (invoiceTransactions.length > 0) {
@@ -64,13 +61,16 @@ export class CreditCardInvoiceService {
           data: { isPaid: true },
         }))
       );
+
+      const totalPaid = invoiceTransactions.reduce((sum, t) => sum + t.value, 0);
+      await CreditCardService.releaseCredit(uid, cardId, totalPaid);
     }
 
     await TransactionService.createIncomeOrExpenseTransaction(uid, {
       name: `FATURA DO MÊS ${invoice.month} DE ${invoice.year} DO CARTAO ${card.name}`,
       category: "Fatura de Cartao de credito",
-      value: Number((card.limit - invoice.total).toFixed(2)),
-      date: dayjs().tz("America/Sao_Paulo").format("YYYY-MM-DDTHH"),
+      value: Number((invoice.total).toFixed(2)),
+      date: dayjs().tz("America/Sao_Paulo").format("YYYY-MM-DD"),
       type: "EXPENSE",
       isRecurring: false,
       isPaid: true,
@@ -119,3 +119,4 @@ export class CreditCardInvoiceService {
     return allTransactions.filter((t) => t.invoiceId === invoiceId && t.creditCardId === cardId);
   }
 }
+

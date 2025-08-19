@@ -5,6 +5,8 @@ import { CreditCardRepository } from "../repositories/CreditCardRepository";
 import { CreditCardInvoiceRepository } from "../repositories/CreditCardInvoiceRepository";
 import { BankAccountService } from "./BankAccountService";
 import { CreditCard } from "../models/CreditCard";
+import { InvoiceStatus } from "../enums/InvoiceStatus";
+import { TransactionRepository } from "../repositories/TransactionRepository";
 
 export class CreditCardService {
   private static readonly ERROR_MESSAGES = {
@@ -27,6 +29,7 @@ export class CreditCardService {
     const creditCard: CreditCard = {
       id,
       ...validatedData,
+      usedLimit: 0,
     };
 
     await CreditCardRepository.create(uid, creditCard);
@@ -48,13 +51,14 @@ export class CreditCardService {
 
     await CreditCardRepository.update(uid, cardId, validatedData);
   }
+
   static async delete(uid: string, cardId: string): Promise<void> {
     await this.validateCreditCardExists(uid, cardId);
 
     const card = await CreditCardRepository.get(uid, cardId);
     if (!card) throw new Error(this.ERROR_MESSAGES.CARD_NOT_FOUND);
 
-    await this.validateCardCanBeDeleted(uid, cardId, card.limit);
+    await this.validateCardCanBeDeleted(uid, cardId);
     await CreditCardRepository.delete(uid, cardId);
   }
 
@@ -66,6 +70,39 @@ export class CreditCardService {
     const card = await CreditCardRepository.get(uid, cardId);
     if (!card) throw new Error(this.ERROR_MESSAGES.CARD_NOT_FOUND);
     return card;
+  }
+
+  static async getAvailableLimit(uid: string, cardId: string): Promise<number> {
+    const card = await CreditCardRepository.get(uid, cardId);
+    if (!card) throw new Error("Card not found");
+
+    return card.limit - (card.usedLimit || 0);
+  }
+
+  static async reserveCredit(uid: string, cardId: string, amount: number): Promise<void> {
+    const card = await CreditCardRepository.get(uid, cardId);
+    if (!card) throw new Error("Card not found");
+
+    const newUsedLimit = (card.usedLimit || 0) + amount;
+
+    if (newUsedLimit > card.limit) {
+      throw new Error(`Credit limit exceeded. Available: ${card.limit - (card.usedLimit || 0)}, Requested: ${amount}`);
+    }
+
+    await CreditCardRepository.update(uid, cardId, {
+      usedLimit: newUsedLimit
+    });
+  }
+
+  static async releaseCredit(uid: string, cardId: string, amount: number): Promise<void> {
+    const card = await CreditCardRepository.get(uid, cardId);
+    if (!card) throw new Error("Card not found");
+
+    const newUsedLimit = Math.max(0, (card.usedLimit || 0) - amount);
+
+    await CreditCardRepository.update(uid, cardId, {
+      usedLimit: newUsedLimit
+    });
   }
 
   private static validateCreditCardData(data: CreditCardRequestDTO): CreditCardRequestDTO {
@@ -99,37 +136,17 @@ export class CreditCardService {
   }
 
   private static async handleLimitChange(uid: string, cardId: string, oldLimit: number, newLimit: number): Promise<void> {
-    const diff = newLimit - oldLimit;
-
-    const invoices = await CreditCardInvoiceRepository.getAll(uid, cardId);
-    const openInvoices = invoices.filter((i) => i.status === "OPEN");
-
-    for (const invoice of openInvoices) {
-      const newTotal = (invoice.total ?? 0) + diff;
-      if (newTotal < 0) {
-        throw new Error(`${this.ERROR_MESSAGES.LIMIT_CHANGE_NEGATIVE_TOTAL}: Fatura ${invoice.month}/${invoice.year}`);
-      }
-    }
-
-    for (const invoice of openInvoices) {
-      const newTotal = (invoice.total ?? 0) + diff;
-      await CreditCardInvoiceRepository.update(uid, cardId, invoice.id, {
-        total: newTotal,
-      });
+    const availableAfterChange = newLimit - (oldLimit - await this.getAvailableLimit(uid, cardId));
+    if (availableAfterChange < 0) {
+      throw new Error("New limit would be exceeded by existing transactions");
     }
   }
 
-  private static async validateCardCanBeDeleted(uid: string, cardId: string, cardLimit: number): Promise<void> {
+  private static async validateCardCanBeDeleted(uid: string, cardId: string): Promise<void> {
     const invoices = await CreditCardInvoiceRepository.getAll(uid, cardId);
-
-    const invoiceWithDifferentTotal = invoices.find(
-      (invoice) => Number(invoice.total ?? 0) !== Number(cardLimit)
-    );
-
-    if (invoiceWithDifferentTotal) {
-      throw new Error(
-        `${this.ERROR_MESSAGES.CANNOT_DELETE_CARD_WITH_TRANSACTIONS}: Fatura ${invoiceWithDifferentTotal.month}/${invoiceWithDifferentTotal.year}`
-      );
+    const invoiceWithTransactions = invoices.find(invoice => invoice.total > 0);
+    if (invoiceWithTransactions) {
+      throw new Error(`Cannot delete card: Invoice ${invoiceWithTransactions.month}/${invoiceWithTransactions.year} has transactions`);
     }
   }
 

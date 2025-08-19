@@ -11,6 +11,7 @@ import { CreditCardInvoiceRepository } from "../../repositories/CreditCardInvoic
 import { CreditCardInvoiceService } from "../CreditCardInvoiceService";
 import { InvoiceStatus } from "../../enums/InvoiceStatus";
 import { TRANSACTION_CONSTANTS } from "./shared/TransactionConstants";
+import { CreditCardService } from "../CreditCardService";
 
 dayjs.extend(timezone);
 
@@ -44,14 +45,16 @@ export class InvoiceTransactionService {
 
         const card = await this.getCreditCard(uid, validatedData.creditCardId!);
 
-        if (validatedData.value > card.limit) {
-            throw new Error(this.ERROR_MESSAGES.VALUE_EXCEEDS_LIMIT);
-        }
-
         const installments = this.calculateInstallments(validatedData);
-        const transactions = await this.createInstallmentTransactions(uid, validatedData, card, installments);
-
-        await TransactionRepository.createMany(uid, transactions);
+        const totalAmount = installments.count * installments.valuePerInstallment;
+        await CreditCardService.reserveCredit(uid, card.id, totalAmount);
+        try {
+            const transactions = await this.createInstallmentTransactions(uid, validatedData, card, installments);
+            await TransactionRepository.createMany(uid, transactions);
+        } catch (error) {
+            await CreditCardService.releaseCredit(uid, card.id, totalAmount);
+            throw error;
+        }
     }
 
     static async deleteInvoiceTransaction(uid: string, primaryTransactionId: string): Promise<void> {
@@ -73,6 +76,10 @@ export class InvoiceTransactionService {
         }
 
         for (const transaction of relatedTransactions) {
+            if (transaction.creditCardId) {
+                await CreditCardService.releaseCredit(uid, transaction.creditCardId, transaction.value);
+            }
+
             if (transaction.invoiceId && transaction.creditCardId) {
                 await this.restoreCreditLimit(uid, transaction);
             }
@@ -163,9 +170,7 @@ export class InvoiceTransactionService {
                 installmentCount = endDate.diff(startDate, "month") + 1;
             }
         }
-
         const valuePerInstallment = Math.round((data.value / installmentCount) * 100) / 100;
-
         return {
             count: installmentCount,
             valuePerInstallment
@@ -281,10 +286,6 @@ export class InvoiceTransactionService {
             (i) => i.month === invoiceMonth && i.year === invoiceYear
         );
 
-        if (invoice && invoice.status === InvoiceStatus.PAID) {
-            throw new Error(this.ERROR_MESSAGES.INVOICE_ALREADY_PAID);
-        }
-
         if (!invoice) {
             let status: InvoiceStatus = InvoiceStatus.OPEN;
 
@@ -305,7 +306,7 @@ export class InvoiceTransactionService {
             invoice = {
                 id: invoiceId,
                 status,
-                total: card.limit,
+                total: 0,
                 month: invoiceMonth,
                 year: invoiceYear,
                 bankAccountId: null,
@@ -314,9 +315,13 @@ export class InvoiceTransactionService {
             await CreditCardInvoiceRepository.create(uid, card.id, invoice);
         }
 
-        const newTotal = (invoice.total ?? card.limit) - data.value;
+        if (invoice.status === InvoiceStatus.PAID) {
+            throw new Error(this.ERROR_MESSAGES.INVOICE_ALREADY_PAID);
+        }
 
-        if (newTotal < 0) {
+        const newTotal = (invoice.total ?? 0) + data.value;
+
+        if (newTotal > card.limit) {
             throw new Error(this.ERROR_MESSAGES.CREDIT_LIMIT_EXCEEDED);
         }
 
@@ -424,4 +429,18 @@ export class InvoiceTransactionService {
             throw error;
         }
     }
+
+    private static async validateInstallmentSeries(
+        uid: string,
+        card: CreditCard,
+        installments: { count: number; valuePerInstallment: number }
+    ): Promise<void> {
+        const totalCommitment = installments.count * installments.valuePerInstallment;
+        const availableLimit = await CreditCardService.getAvailableLimit(uid, card.id);
+
+        if (totalCommitment > availableLimit) {
+            throw new Error(`Installment series exceeds available limit. Need: ${totalCommitment}, Available: ${availableLimit}`);
+        }
+    }
 }
+

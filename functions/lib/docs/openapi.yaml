@@ -29,6 +29,10 @@ tags:
     description: Credit card management operations
   - name: Credit Card Invoice
     description: Credit card invoice management operations
+  - name: Category
+    description: User-defined category management operations
+  - name: Global Category
+    description: Global category management operations
 
 paths:
   /identitytoolkit.googleapis.com/v1/accounts:signInWithPassword:
@@ -1282,7 +1286,19 @@ paths:
       tags:
         - Transaction
       summary: Create invoice transaction
-      description: Creates a new invoice transaction (credit card purchase)
+      description: |
+        Creates a new invoice transaction (credit card purchase).
+        
+        **Credit Limit Behavior:**
+        - Immediately reserves credit from the card's available limit
+        - For installments, reserves the full series amount upfront
+        - Adds transaction value to the appropriate invoice total
+        - Validates that available credit is sufficient before creation
+        
+        **Installment Handling:**
+        - Creates multiple transactions across different invoice periods
+        - Each installment is linked via primaryTransactionId
+        - Full installment series credit is reserved immediately
       operationId: createInvoice
       requestBody:
         required: true
@@ -1373,7 +1389,16 @@ paths:
                       currency: "BRL"
                       bankAccountId: "account123"
         400:
-          $ref: '#/components/responses/ValidationError'
+          description: Validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                limit_decrease_blocked:  # 🆕 NEW EXAMPLE
+                  summary: Cannot decrease limit below used amount
+                  value:
+                    error: "New limit would be exceeded by existing transactions. Used: 3000.00, New Limit: 2500.00"
         401:
           $ref: '#/components/responses/UnauthorizedError'
         500:
@@ -1717,6 +1742,7 @@ paths:
                       flag: "VISA"
                       closingDay: 15
                       dueDate: 10
+                      usedLimit: 0.00
                       limit: 5000.00
                       bankAccountId: "account123"
         400:
@@ -1913,6 +1939,7 @@ paths:
                         closingDay: 15
                         dueDate: 10
                         limit: 5000.00
+                        usedLimit: 1250.50
                         bankAccountId: "account123"
                       - id: "card456"
                         name: "Mastercard Itaú"
@@ -1920,6 +1947,7 @@ paths:
                         closingDay: 5
                         dueDate: 25
                         limit: 3000.00
+                        usedLimit: 1250.50
                         bankAccountId: "account456"
         401:
           $ref: '#/components/responses/UnauthorizedError'
@@ -1965,7 +1993,7 @@ paths:
                     invoice:
                       id: "invoice123"
                       status: "OPEN"
-                      total: 5000.00
+                      total: 0
                       month: 1
                       year: 2024
                       bankAccountId: null
@@ -2242,8 +2270,13 @@ paths:
         Pays a closed credit card invoice. This will:
         - Mark the invoice as PAID
         - Mark all related transactions as paid
-        - Create an expense transaction for the payment
+        - Release reserved credit back to the card's available limit
+        - Create an expense transaction equal to the invoice total
         - Link the payment to a bank account
+        
+        **Credit Limit Impact:**
+        - Paying an invoice releases the reserved credit
+        - Available limit increases by the invoice total amount
       operationId: payCreditCardInvoice
       requestBody:
         required: true
@@ -2313,6 +2346,383 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         404:
           $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /category-createCategory:
+    post:
+      tags:
+        - Category
+      summary: Create a new category
+      description: Creates a new user-defined category
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  $ref: '#/components/schemas/CategoryRequestDTO'
+            examples:
+              create_category:
+                summary: Create category example
+                value:
+                  data:
+                    name: "Alimentação"
+                    type: "EXPENSE"
+                    icon: "food"
+      responses:
+        200:
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                success:
+                  summary: Category created
+                  value:
+                    message: "Categoria criada com sucesso"
+                    data:
+                      id: "category123"
+                      name: "Alimentação"
+                      type: "EXPENSE"
+                      icon: "food"
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /category-updateCategory:
+    post:
+      tags:
+        - Category
+      summary: Update category
+      description: Updates an existing user-defined category
+      operationId: updateCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  allOf:
+                    - type: object
+                      required:
+                        - id
+                      properties:
+                        id:
+                          type: string
+                          description: "Category ID to update"
+                          example: "category123"
+                    - $ref: '#/components/schemas/CategoryRequestDTO'
+            examples:
+              update_category:
+                summary: Update category example
+                value:
+                  data:
+                    id: "category123"
+                    name: "Alimentação e Bebidas"
+                    type: "EXPENSE"
+                    icon: "food"
+      responses:
+        200:
+          description: Category updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                success:
+                  summary: Category updated
+                  value:
+                    message: "Categoria atualizada com sucesso"
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /category-deleteCategory:
+    post:
+      tags:
+        - Category
+      summary: Delete category
+      description: Deletes a user-defined category
+      operationId: deleteCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: object
+                  required:
+                    - id
+                  properties:
+                    id:
+                      type: string
+                      description: "Category ID to delete"
+                      example: "category123"
+            examples:
+              delete_category:
+                summary: Delete category example
+                value:
+                  data:
+                    id: "category123"
+      responses:
+        200:
+          description: Category deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                success:
+                  summary: Category deleted
+                  value:
+                    message: "Categoria excluída com sucesso"
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /category-getCategory:
+    post:
+      tags:
+        - Category
+      summary: Get category
+      description: Retrieves a specific user-defined category by ID
+      operationId: getCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: object
+                  required:
+                    - id
+                  properties:
+                    id:
+                      type: string
+                      description: "Category ID"
+                      example: "category123"
+            examples:
+              get_category:
+                summary: Get category example
+                value:
+                  data:
+                    id: "category123"
+      responses:
+        200:
+          description: Category retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Category'
+              examples:
+                success:
+                  summary: Category retrieved
+                  value:
+                    data:
+                      id: "category123"
+                      name: "Alimentação"
+                      type: "EXPENSE"
+                      icon: "food"
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /category-getAllCategories:
+    post:
+      tags:
+        - Category
+      summary: Get all categories
+      description: Retrieves all user-defined categories for the authenticated user
+      operationId: getAllCategories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: object
+                  description: "Empty data object required for Firebase Functions"
+            examples:
+              empty_request:
+                summary: Empty data request
+                value:
+                  data: {}
+      responses:
+        200:
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Category'
+              examples:
+                success:
+                  summary: Categories retrieved
+                  value:
+                    message: "Categorias recuperadas com sucesso"
+                    data:
+                      - id: "category123"
+                        name: "Alimentação"
+                        type: "EXPENSE"
+                        icon: "food"
+                      - id: "category456"
+                        name: "Transporte"
+                        type: "EXPENSE"
+                        icon: "car"
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /globalCategory-seedCategoriesDefaults:
+    post:
+      tags:
+        - Global Category
+      summary: Seed default categories
+      description: Seeds the database with default global categories
+      operationId: seedCategoriesDefaults
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Empty data object required for Firebase Functions"
+            examples:
+              empty_request:
+                summary: Empty data request
+                value:
+                  data: {}
+      responses:
+        200:
+          description: Default categories seeded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                success:
+                  summary: Categories seeded
+                  value:
+                    message: "Categorias padrão criadas com sucesso"
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /globalCategory-getAllDefaultCategories:
+    post:
+      tags:
+        - Global Category
+      summary: Get all default categories
+      description: Retrieves all default global categories
+      operationId: getAllDefaultCategories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Empty data object required for Firebase Functions"
+            examples:
+              empty_request:
+                summary: Empty data request
+                value:
+                  data: {}
+      responses:
+        200:
+          description: Default categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Category'
+              examples:
+                success:
+                  summary: Default categories retrieved
+                  value:
+                    message: "Categorias padrão recuperadas com sucesso"
+                    data:
+                      - id: "globalCategory123"
+                        name: "Alimentação"
+                        type: "EXPENSE"
+                        icon: "food"
+                      - id: "globalCategory456"
+                        name: "Transporte"
+                        type: "EXPENSE"
+                        icon: "car"
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
         500:
           $ref: '#/components/responses/InternalServerError'
       security:
@@ -2433,7 +2843,6 @@ components:
         - TRAVEL: Viagem
         - EMERGENCY_FUND: Montar fundo de emergência
 
-    
     AccountType:
       type: string
       enum:
@@ -2809,39 +3218,44 @@ components:
       description: "Credit card flag/brand"
 
     CreditCard:
-      type: object
-      properties:
-        id:
-          type: string
-          example: "card123"
-          description: "Unique credit card identifier"
-        name:
-          type: string
-          example: "Cartão Visa Santander"
-          description: "Credit card display name"
-        flag:
-          $ref: '#/components/schemas/CreditCardFlag'
-        closingDay:
-          type: integer
-          minimum: 1
-          maximum: 31
-          example: 15
-          description: "Day of month when the invoice closes (1-31)"
-        dueDate:
-          type: integer
-          minimum: 1
-          maximum: 31
-          example: 10
-          description: "Day of month when payment is due (1-31)"
-        limit:
-          type: number
-          minimum: 0
-          example: 5000.00
-          description: "Credit card limit"
-        bankAccountId:
-          type: string
-          example: "account123"
-          description: "ID of the linked bank account for payments"
+  type: object
+  properties:
+    id:
+      type: string
+      example: "card123"
+      description: "Unique credit card identifier"
+    name:
+      type: string
+      example: "Cartão Visa Santander"
+      description: "Credit card display name"
+    flag:
+      $ref: '#/components/schemas/CreditCardFlag'
+    closingDay:
+      type: integer
+      minimum: 1
+      maximum: 31
+      example: 15
+      description: "Day of month when the invoice closes (1-31)"
+    dueDate:
+      type: integer
+      minimum: 1
+      maximum: 31
+      example: 10
+      description: "Day of month when payment is due (1-31)"
+    limit:
+      type: number
+      minimum: 0
+      example: 5000.00
+      description: "Total credit card limit"
+    usedLimit:
+      type: number
+      minimum: 0
+      example: 1500.00
+      description: "Currently used credit (reserved by unpaid transactions)"
+    bankAccountId:
+      type: string
+      example: "account123"
+      description: "ID of the linked bank account for payments"
 
     CreditCardRequestDTO:
       type: object
@@ -2912,7 +3326,9 @@ components:
           type: number
           minimum: 0
           example: 7500.00
-          description: "Credit card limit (affects open invoices when changed)"
+          description: |
+            "Credit card limit. When decreased, validates that new limit >= currently used credit.
+            When increased, immediately increases available credit for new transactions."
         bankAccountId:
           type: string
           minLength: 1
@@ -2950,7 +3366,7 @@ components:
         total:
           type: number
           example: 3500.50
-          description: "Total amount of the invoice"
+          description: "Total amount owed on this invoice (sum of all transactions)"
         month:
           type: integer
           minimum: 1
@@ -2996,6 +3412,53 @@ components:
           example: "account123"
           description: "Bank account used for payment"
           nullable: true
+
+    CategoryRequestDTO:
+      type: object
+      required:
+        - name
+        - type
+        - icon
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: "Alimentação"
+          description: "Category name (2-50 characters)"
+        type:
+          type: string
+          enum:
+            - INCOME
+            - EXPENSE
+          example: "EXPENSE"
+          description: "Category type (INCOME or EXPENSE)"
+        icon:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: "food"
+          description: "Icon name (1-50 characters)"
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "category123"
+          description: "Unique category identifier"
+        name:
+          type: string
+          example: "Alimentação"
+          description: "Category name"
+        type:
+          type: string
+          example: "EXPENSE"
+          description: "Category type"
+        icon:
+          type: string
+          example: "food"
+          description: "Icon name"
 
     SuccessResponse:
       type: object
@@ -3072,6 +3535,22 @@ components:
               value:
                 error: "Erro interno do servidor"
                 details: "An unexpected error occurred"
+    
+    CreditLimitExceededError:
+      description: Credit limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            limit_exceeded:
+              summary: Transaction exceeds available credit
+              value:
+                error: "Credit limit exceeded. Available: 1500.00, Requested: 2000.00"
+            installment_exceeds_limit:
+              summary: Installment series exceeds available credit
+              value:
+                error: "Installment series exceeds available limit. Need: 3000.00, Available: 2500.00"
 
   securitySchemes:
     FirebaseAuth:
