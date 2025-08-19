@@ -1,15 +1,24 @@
-import * as functions from "firebase-functions";
+import { createAuthenticatedRoute } from "../utils/routeWrapper";
 import { GlobalCategoryController } from "../controllers/GlobalCategoryController";
 
-
 export const globalCategoryRoutes = {
-  seedCategoriesDefaults: functions.https.onCall(async () => {
-    await GlobalCategoryController.seedDefaults();
-    return { message: "Categorias default criadas com sucesso!" };
-  }),
+  seedCategoriesDefaults: createAuthenticatedRoute<void, void>(
+    async () => {
+      await GlobalCategoryController.seedDefaults();
+    },
+    {
+      successMessage: "Categorias padrão criadas com sucesso",
+    }
+  ),
 
-  getAllDefaultCategories: functions.https.onCall(async () => {
-    const categories = await GlobalCategoryController.getAllDefaults();
-    return categories;
-  }),
+  getAllDefaultCategories: createAuthenticatedRoute<void, any>(
+    async () => {
+      const categories = await GlobalCategoryController.getAllDefaults();
+      return { categories };
+    },
+    {
+      successMessage: "Categorias padrão recuperadas com sucesso",
+    }
+  ),
 };
+
