@@ -746,6 +746,158 @@ paths:
       security:
         - FirebaseAuth: []
 
+  /bank-getBalancesByMonth:
+    post:
+      tags:
+        - Bank Account
+      summary: Get bank account balances by month
+      description: |
+        Retrieves bank account balances with different calculations based on the requested month:
+        
+        **Current Month:**
+        - Returns current balance and forecast balance for each account
+        - Forecast includes unpaid transactions for the current month
+        - Provides total balance and forecast total balance
+        
+        **Past Months:**
+        - Returns monthly net balance (paid incomes - paid expenses) for each account
+        - Provides past month total balance
+        
+        **Future Months:**
+        - Only supports next month forecast
+        - Returns forecast balance based on recurring transactions
+        - Provides forecast total balance
+      operationId: getBankAccountBalancesByMonth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  $ref: '#/components/schemas/BankAccountBalancesByMonthRequestDTO'
+            examples:
+              current_month:
+                summary: Get current month balances
+                value:
+                  data:
+                    month: "2025-08"
+              past_month:
+                summary: Get past month balances
+                value:
+                  data:
+                    month: "2025-07"
+              next_month:
+                summary: Get next month forecast
+                value:
+                  data:
+                    month: "2025-09"
+      responses:
+        200:
+          description: Bank account balances retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BankAccountBalancesByMonthResponseDTO'
+              examples:
+                current_month_response:
+                  summary: Current month balances
+                  value:
+                    message: "Listagem de contas efetuada com sucesso!"
+                    data:
+                      accounts:
+                        - id: "account123"
+                          name: "Conta Corrente Nubank"
+                          type: "CHECKING"
+                          bank: "260"
+                          balance: 1500.00
+                          currency: "BRL"
+                          forecastBankAccountBalance: 2200.50
+                        - id: "account456"
+                          name: "Conta Corrente Itaú"
+                          type: "CHECKING"
+                          bank: "341"
+                          balance: 3000.00
+                          currency: "BRL"
+                          forecastBankAccountBalance: 2800.00
+                      totalBalance: 4500.00
+                      forecastTotalBalance: 5000.50
+                past_month_response:
+                  summary: Past month balances
+                  value:
+                    message: "Listagem de contas efetuada com sucesso!"
+                    data:
+                      accounts:
+                        - id: "account123"
+                          name: "Conta Corrente Nubank"
+                          type: "CHECKING"
+                          bank: "260"
+                          balance: 1500.00
+                          currency: "BRL"
+                          pastMonthBankAccountBalance: 800.00
+                        - id: "account456"
+                          name: "Conta Corrente Itaú"
+                          type: "CHECKING"
+                          bank: "341"
+                          balance: 3000.00
+                          currency: "BRL"
+                          pastMonthBankAccountBalance: -200.00
+                      pastMonthTotalBalance: 600.00
+                future_month_response:
+                  summary: Next month forecast
+                  value:
+                    message: "Listagem de contas efetuada com sucesso!"
+                    data:
+                      accounts:
+                        - id: "account123"
+                          name: "Conta Corrente Nubank"
+                          type: "CHECKING"
+                          bank: "260"
+                          balance: 1500.00
+                          currency: "BRL"
+                          forecastBankAccountBalance: 1950.00
+                        - id: "account456"
+                          name: "Conta Corrente Itaú"
+                          type: "CHECKING"
+                          bank: "341"
+                          balance: 3000.00
+                          currency: "BRL"
+                          forecastBankAccountBalance: 2750.00
+                      forecastTotalBalance: 4700.00
+        400:
+          description: Validation errors or invalid month
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_month_format:
+                  summary: Invalid month format
+                  value:
+                    error: "Validation failed: [{\"field\":\"month\",\"message\":\"Month must be in YYYY-MM format\"}]"
+                invalid_date:
+                  summary: Invalid date
+                  value:
+                    error: "Validation failed: [{\"field\":\"month\",\"message\":\"Invalid month format\"}]"
+                future_month_not_supported:
+                  summary: Future month beyond next month
+                  value:
+                    error: "Forecast is only available for the next month"
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
   /transaction-createIncomeOrExpense:
     post:
       tags:
@@ -2953,6 +3105,66 @@ components:
           example: "BRL"
           description: "Currency code (ISO 4217 format)"
 
+    BankAccountBalancesByMonthRequestDTO:
+      type: object
+      required:
+        - month
+      properties:
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          example: "2024-01"
+          description: "Month in YYYY-MM format"
+      example:
+        month: "2024-01"
+
+    BankAccountWithBalances:
+      allOf:
+        - $ref: '#/components/schemas/BankAccount'
+        - type: object
+          properties:
+            forecastBankAccountBalance:
+              type: number
+              example: 2200.50
+              description: "Forecast balance for current/future months (current balance + unpaid/recurring transactions)"
+              nullable: true
+            pastMonthBankAccountBalance:
+              type: number
+              example: 800.00
+              description: "Monthly net balance for past months (paid incomes - paid expenses)"
+              nullable: true
+
+    BankAccountBalancesByMonthResponseDTO:
+      type: object
+      required:
+        - message
+        - accounts
+      properties:
+        message:
+          type: string
+          example: "Listagem de contas efetuada com sucesso!"
+          description: "Success message"
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/BankAccountWithBalances'
+          description: "List of bank accounts with balance information"
+        totalBalance:
+          type: number
+          example: 4500.00
+          description: "Total current balance across all accounts (current month only)"
+          nullable: true
+        forecastTotalBalance:
+          type: number
+          example: 5000.50
+          description: "Total forecast balance across all accounts (current/future months only)"
+          nullable: true
+        pastMonthTotalBalance:
+          type: number
+          example: 600.00
+          description: "Total monthly net balance across all accounts (past months only)"
+          nullable: true
+
     TransactionType:
       type: string
       enum:
@@ -3218,44 +3430,44 @@ components:
       description: "Credit card flag/brand"
 
     CreditCard:
-  type: object
-  properties:
-    id:
-      type: string
-      example: "card123"
-      description: "Unique credit card identifier"
-    name:
-      type: string
-      example: "Cartão Visa Santander"
-      description: "Credit card display name"
-    flag:
-      $ref: '#/components/schemas/CreditCardFlag'
-    closingDay:
-      type: integer
-      minimum: 1
-      maximum: 31
-      example: 15
-      description: "Day of month when the invoice closes (1-31)"
-    dueDate:
-      type: integer
-      minimum: 1
-      maximum: 31
-      example: 10
-      description: "Day of month when payment is due (1-31)"
-    limit:
-      type: number
-      minimum: 0
-      example: 5000.00
-      description: "Total credit card limit"
-    usedLimit:
-      type: number
-      minimum: 0
-      example: 1500.00
-      description: "Currently used credit (reserved by unpaid transactions)"
-    bankAccountId:
-      type: string
-      example: "account123"
-      description: "ID of the linked bank account for payments"
+      type: object
+      properties:
+        id:
+          type: string
+          example: "card123"
+          description: "Unique credit card identifier"
+        name:
+          type: string
+          example: "Cartão Visa Santander"
+          description: "Credit card display name"
+        flag:
+          $ref: '#/components/schemas/CreditCardFlag'
+        closingDay:
+          type: integer
+          minimum: 1
+          maximum: 31
+          example: 15
+          description: "Day of month when the invoice closes (1-31)"
+        dueDate:
+          type: integer
+          minimum: 1
+          maximum: 31
+          example: 10
+          description: "Day of month when payment is due (1-31)"
+        limit:
+          type: number
+          minimum: 0
+          example: 5000.00
+          description: "Total credit card limit"
+        usedLimit:
+          type: number
+          minimum: 0
+          example: 1500.00
+          description: "Currently used credit (reserved by unpaid transactions)"
+        bankAccountId:
+          type: string
+          example: "account123"
+          description: "ID of the linked bank account for payments"
 
     CreditCardRequestDTO:
       type: object

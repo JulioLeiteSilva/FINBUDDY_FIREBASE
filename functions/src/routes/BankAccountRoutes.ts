@@ -1,6 +1,8 @@
 import { createAuthenticatedRoute } from "../utils/routeWrapper";
 import { BankAccountService } from "../services/BankAccountService";
 import { CreateBankAccountDTO, UpdateBankAccountDTO } from "../dto/BankAccountDTO";
+import { BankAccountBalancesByMonthRequestDTO } from "../dto/BankAccountBalancesByMonthRequestDTO";
+import { BankAccountBalancesByMonthResponseDTO } from "../dto/BankAccountBalancesByMonthResponseDTO";
 export const bankAccountRoutes = {
   createBankAccount: createAuthenticatedRoute<CreateBankAccountDTO, any>(
     async (request) => {
@@ -65,4 +67,15 @@ export const bankAccountRoutes = {
       successMessage: "Listagem de contas efetuada com sucesso!",
     }
   ),
+
+  getBalancesByMonth: createAuthenticatedRoute<BankAccountBalancesByMonthRequestDTO, BankAccountBalancesByMonthResponseDTO>(
+    async (request) => {
+      return await BankAccountService.getBalancesByMonth(request.uid, request.data);
+    },
+    {
+      successMessage: "Listagem de contas efetuada com sucesso!",
+      requireData: true,
+    }
+  ),
 };
+

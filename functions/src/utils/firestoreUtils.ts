@@ -1,3 +1,5 @@
+import dayjs from "dayjs";
+
 export type FirestoreTimestamp = {
     _seconds: number;
     _nanoseconds: number;
@@ -26,3 +28,7 @@ export const firestoreTimestampToDate = (timestamp: unknown): Date | null => {
     return null;
 };
 
+export const firestoreTimestampToDayjs = (timestamp: unknown): dayjs.Dayjs | null => {
+    const date = firestoreTimestampToDate(timestamp);
+    return date ? dayjs(date) : null;
+};
