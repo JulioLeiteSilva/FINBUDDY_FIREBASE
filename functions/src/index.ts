@@ -1,5 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
+const { setGlobalOptions } = require("firebase-functions/v2");
 import * as logger from "firebase-functions/logger";
+setGlobalOptions({ region: "southamerica-east1" });
 
 import { userRoutes } from "./routes/UserRoutes";
 import { bankAccountRoutes } from "./routes/BankAccountRoutes";

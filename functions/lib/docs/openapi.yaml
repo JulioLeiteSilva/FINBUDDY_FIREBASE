@@ -11,9 +11,9 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:5001/finbuddy-6af05/us-central1
+  - url: http://localhost:5001/finbuddy-6af05/southamerica-east1
     description: Local development server
-  - url: https://us-central1-finbuddy-6af05.cloudfunctions.net
+  - url: https://southamerica-east1-finbuddy-6af05.cloudfunctions.net
     description: Production server
 
 tags:

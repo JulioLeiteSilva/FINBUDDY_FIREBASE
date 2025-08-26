@@ -10,21 +10,14 @@ const loadSwaggerDocument = () => {
         // Since openapi.yaml is in the same directory as this file
         const yamlPath = path.join(__dirname, 'openapi.yaml');
 
-        console.log(`Looking for OpenAPI spec at: ${yamlPath}`);
         if (fs.existsSync(yamlPath)) {
-            console.log(`✅ Found OpenAPI spec at: ${yamlPath}`);
             const document = YAML.load(yamlPath);
             console.log(`✅ Successfully loaded OpenAPI spec with ${Object.keys(document.paths || {}).length} endpoints`);
             return document;
         } else {
-            console.log(`❌ OpenAPI spec not found at: ${yamlPath}`);
             throw new Error(`OpenAPI YAML file not found at: ${yamlPath}`);
         }
     } catch (error) {
-        console.error('❌ Error loading OpenAPI spec:', error);
-
-        // Fallback to a minimal spec
-        console.log('📄 Using fallback OpenAPI specification');
         return {
             openapi: '3.1.0',
             info: {
@@ -34,7 +27,7 @@ const loadSwaggerDocument = () => {
             },
             servers: [
                 {
-                    url: 'http://localhost:5001/finbuddy-6af05/us-central1',
+                    url: 'http://localhost:5001/finbuddy-6af05/southamerica-east1',
                     description: 'Local development server'
                 }
             ],

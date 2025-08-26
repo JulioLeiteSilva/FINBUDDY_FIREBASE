@@ -17,6 +17,7 @@ import { CreditCard } from "../models/CreditCard";
 import { CreditCardInvoice } from "../models/CreditCardInvoice";
 import { firestoreTimestampToDayjs } from "../utils/firestoreUtils";
 import { InvoiceStatus } from "../enums/InvoiceStatus";
+import { TransactionFrequency } from "../enums/TransactionFrequency";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -215,10 +216,14 @@ export class BankAccountService {
 
   private static async calculateFutureMonthBalances(uid: string, accounts: BankAccount[], requestedDate: dayjs.Dayjs): Promise<BankAccountBalancesByMonthResponseDTO> {
     const currentDate = dayjs().tz("America/Sao_Paulo");
-    const nextMonth = currentDate.add(1, 'month');
+    const monthsAhead = requestedDate.diff(currentDate, 'month');
 
-    if (!requestedDate.isSame(nextMonth, 'month')) {
-      throw new Error("Forecast is only available for the next month");
+    if (monthsAhead <= 0) {
+      throw new Error("Requested month must be in the future");
+    }
+
+    if (monthsAhead > 12) {
+      throw new Error("Forecast is only available up to 12 months ahead");
     }
 
     const accountsWithBalances: BankAccountWithBalances[] = [];
@@ -226,8 +231,8 @@ export class BankAccountService {
 
     for (const account of accounts) {
       const currentBalance = account.balance;
-      const recurringNet = await this.calculateFutureNetForAccount(uid, account.id, requestedDate);
-      const forecastBalance = currentBalance + recurringNet;
+      const futureNet = await this.calculateFutureNetForAccount(uid, account.id, requestedDate);
+      const forecastBalance = currentBalance + futureNet;
       forecastTotalBalance += forecastBalance;
 
       accountsWithBalances.push({
@@ -259,7 +264,6 @@ export class BankAccountService {
 
     const invoicePayments = await this.calculateInvoicePaymentsForAccount(uid, accountId, currentMonth);
 
-    console.log(`Current month forecast - Transaction net: ${transactionNet}, Invoice payments: ${invoicePayments}`);
     return transactionNet - invoicePayments;
   }
 
@@ -278,10 +282,26 @@ export class BankAccountService {
     return this.calculateNetFromTransactions(monthlyTransactions);
   }
 
-  private static async calculateFutureNetForAccount(uid: string, accountId: string, month: dayjs.Dayjs): Promise<number> {
+  private static async calculateFutureNetForAccount(uid: string, accountId: string, targetMonth: dayjs.Dayjs): Promise<number> {
+    const currentMonth = dayjs().tz("America/Sao_Paulo");
+
+    let cumulativeNet = 0;
+
+    let monthIterator = currentMonth.add(1, 'month');
+
+    while (monthIterator.isSameOrBefore(targetMonth, 'month')) {
+      const monthNet = await this.calculateNetForSpecificMonth(uid, accountId, monthIterator);
+      cumulativeNet += monthNet;
+      monthIterator = monthIterator.add(1, 'month');
+    }
+
+    return cumulativeNet;
+  }
+
+  private static async calculateNetForSpecificMonth(uid: string, accountId: string, month: dayjs.Dayjs): Promise<number> {
     const transactions = await TransactionRepository.getAll(uid);
 
-    const futureTransactions = transactions.filter(t => {
+    const monthTransactions = transactions.filter(t => {
       if (t.bankAccountId !== accountId || t.isPaid) return false;
 
       const transactionDate = firestoreTimestampToDayjs(t.date);
@@ -289,18 +309,19 @@ export class BankAccountService {
 
       const transactionDateTz = transactionDate.tz("America/Sao_Paulo");
 
-      if (transactionDateTz.isSame(month, 'month')) return true;
+      if (transactionDateTz.isSame(month, 'month')) {
+        return true;
+      }
+
       if (t.isRecurring) {
         return this.isRecurringTransactionActiveInMonth(t, month, transactionDateTz);
       }
+
       return false;
     });
 
-    const transactionNet = this.calculateNetFromTransactions(futureTransactions);
-
+    const transactionNet = this.calculateNetFromTransactions(monthTransactions);
     const invoicePayments = await this.calculateInvoicePaymentsForAccount(uid, accountId, month);
-
-    console.log(`Future month ${month.format('YYYY-MM')} - Transaction net: ${transactionNet}, Invoice payments: ${invoicePayments}`);
 
     return transactionNet - invoicePayments;
   }
@@ -323,7 +344,6 @@ export class BankAccountService {
 
       totalInvoicePayments += unpaidInvoices.reduce((sum, inv) => sum + inv.total, 0);
 
-      console.log(`Found ${unpaidInvoices.length} unpaid invoices for account ${accountId} in ${month.format('YYYY-MM')}`);
     }
 
     return totalInvoicePayments;
@@ -346,20 +366,90 @@ export class BankAccountService {
     return Net
   }
 
-  private static isRecurringTransactionActiveInMonth(transaction: Transaction, month: dayjs.Dayjs, transactionDate?: dayjs.Dayjs): boolean {
+  private static isRecurringTransactionActiveInMonth(transaction: Transaction, targetMonth: dayjs.Dayjs, transactionDate?: dayjs.Dayjs): boolean {
     const txDate = transactionDate || firestoreTimestampToDayjs(transaction.date);
     if (!txDate) return false;
 
     const transactionDateTz = txDate.tz("America/Sao_Paulo");
 
-    if (transactionDateTz.isSame(month, 'month')) {
+    if (transactionDateTz.isSame(targetMonth, 'month')) {
       return true;
     }
 
-    if (transaction.frequency === 'MONTHLY') {
-      return transactionDateTz.isBefore(month, 'month') || transactionDateTz.isSame(month, 'month');
+    if (!transaction.isRecurring || !transaction.frequency) {
+      return false;
     }
 
-    return false;
+    if (targetMonth.isBefore(transactionDateTz, 'month')) {
+      return false;
+    }
+
+    if (transaction.endDate) {
+      const endDate = firestoreTimestampToDayjs(transaction.endDate);
+      if (endDate && targetMonth.isAfter(endDate.tz("America/Sao_Paulo"), 'month')) {
+        return false;
+      }
+    }
+
+    return this.calculateRecurrenceForMonth(transactionDateTz, targetMonth, transaction.frequency);
   }
+
+  private static calculateRecurrenceForMonth(startDate: dayjs.Dayjs, targetMonth: dayjs.Dayjs, frequency: string): boolean {
+    const monthsDiff = targetMonth.diff(startDate, 'month');
+
+    switch (frequency) {
+      case TransactionFrequency.WEEKLY:
+        return this.hasWeeklyOccurrenceInMonth(startDate, targetMonth);
+
+      case TransactionFrequency.BIWEEKLY:
+        return this.hasBiweeklyOccurrenceInMonth(startDate, targetMonth);
+
+      case TransactionFrequency.MONTHLY:
+        return monthsDiff >= 0;
+
+      case TransactionFrequency.BIMONTHLY:
+        return monthsDiff >= 0 && monthsDiff % 2 === 0;
+
+      case TransactionFrequency.QUARTERLY:
+        return monthsDiff >= 0 && monthsDiff % 3 === 0;
+
+      case TransactionFrequency.SEMIANNUALLY:
+        return monthsDiff >= 0 && monthsDiff % 6 === 0;
+
+      case TransactionFrequency.ANNUALLY:
+        return startDate.month() === targetMonth.month() &&
+          startDate.date() <= targetMonth.daysInMonth() &&
+          targetMonth.year() >= startDate.year();
+
+      default:
+        console.warn(`Unknown frequency: ${frequency}`);
+        return false;
+    }
+  }
+
+  private static hasWeeklyOccurrenceInMonth(startDate: dayjs.Dayjs, targetMonth: dayjs.Dayjs): boolean {
+    const startOfMonth = targetMonth.startOf('month');
+    const endOfMonth = targetMonth.endOf('month');
+
+    let currentOccurrence = startDate;
+    while (currentOccurrence.isBefore(startOfMonth)) {
+      currentOccurrence = currentOccurrence.add(1, 'week');
+    }
+
+    return currentOccurrence.isSameOrBefore(endOfMonth);
+  }
+
+  private static hasBiweeklyOccurrenceInMonth(startDate: dayjs.Dayjs, targetMonth: dayjs.Dayjs): boolean {
+    const startOfMonth = targetMonth.startOf('month');
+    const endOfMonth = targetMonth.endOf('month');
+
+    let currentOccurrence = startDate;
+    while (currentOccurrence.isBefore(startOfMonth)) {
+      currentOccurrence = currentOccurrence.add(2, 'weeks'); // Every 2 weeks
+    }
+
+    return currentOccurrence.isSameOrBefore(endOfMonth);
+  }
+
 }
+

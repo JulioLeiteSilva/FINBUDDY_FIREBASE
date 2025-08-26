@@ -2,7 +2,7 @@
   "name": "functions",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
-    "build": "tsc && npm run copy-yaml",
+    "build": "tsc",
     "build:watch": "tsc --watch",
     "copy-yaml": "xcopy /Y src\\docs\\*.yaml lib\\docs\\ 2>nul || (echo YAML files copied & exit 0)",
     "serve": "npm run build && firebase emulators:start --only functions",
