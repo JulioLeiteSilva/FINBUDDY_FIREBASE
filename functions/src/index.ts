@@ -10,7 +10,7 @@ import { categoryRoutes } from "./routes/CategoryRoutes";
 import { transactionRoutes } from "./routes/TransactionRoutes";
 import { creditCardRoutes } from "./routes/CreditCardRoutes";
 import { creditCardInvoiceRoutes } from "./routes/CreditCardInvoiceRoutes";
-
+import { updateInvoiceStatuses } from "./scheduledTasks/invoiceStatusUpdater";
 import { createDocsApp } from "./docs/swagger-setup";
 
 export const user = userRoutes;
@@ -20,6 +20,7 @@ export const category = categoryRoutes;
 export const transaction = transactionRoutes;
 export const creditCard = creditCardRoutes;
 export const creditCardInvoice = creditCardInvoiceRoutes;
+export const scheduledInvoiceStatusUpdate = updateInvoiceStatuses;
 
 export const docs = onRequest(createDocsApp());
 
