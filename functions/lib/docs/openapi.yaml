@@ -2880,6 +2880,202 @@ paths:
       security:
         - FirebaseAuth: []
 
+  /financialPlanning-create:
+    post:
+      tags:
+        - Financial Planning
+      summary: Create financial plan
+      description: Creates a new financial plan for a specific month
+      operationId: createFinancialPlanning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  $ref: '#/components/schemas/CreateFinancialPlanningRequestDTO'
+      responses:
+        200:
+          description: Financial plan created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FinancialPlanningWithCategories'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /financialPlanning-copyFromMonth:
+    post:
+      tags:
+        - Financial Planning
+      summary: Copy financial plan from month
+      description: Creates a new financial plan by copying from a previous month
+      operationId: copyFinancialPlanningFromMonth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  $ref: '#/components/schemas/CopyFinancialPlanningRequestDTO'
+      responses:
+        200:
+          description: Financial plan copied successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FinancialPlanningWithCategories'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /financialPlanning-getByMonth:
+    post:
+      tags:
+        - Financial Planning
+      summary: Get financial plan by month
+      description: Retrieves a financial plan with spending progress for a specific month
+      operationId: getFinancialPlanningByMonth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  $ref: '#/components/schemas/GetFinancialPlanningRequestDTO'
+      responses:
+        200:
+          description: Financial plan retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FinancialPlanningWithCategories'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /financialPlanning-update:
+    post:
+      tags:
+        - Financial Planning
+      summary: Update financial plan
+      description: Updates an existing financial plan
+      operationId: updateFinancialPlanning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  $ref: '#/components/schemas/UpdateFinancialPlanningRequestDTO'
+      responses:
+        200:
+          description: Financial plan updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FinancialPlanningWithCategories'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /financialPlanning-delete:
+    post:
+      tags:
+        - Financial Planning
+      summary: Delete financial plan
+      description: Deletes a financial plan
+      operationId: deleteFinancialPlanning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  $ref: '#/components/schemas/DeleteFinancialPlanningRequestDTO'
+      responses:
+        200:
+          description: Financial plan deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
 components:
   schemas:
     CompleteUserProfileDTO:
@@ -3671,6 +3867,260 @@ components:
           type: string
           example: "food"
           description: "Icon name"
+
+    CreateFinancialPlanningRequestDTO:
+      type: object
+      required:
+        - monthlyIncome
+        - budgetAmount
+        - month
+        - categoryAllocations
+      properties:
+        monthlyIncome:
+          type: number
+          format: float
+          example: 3500
+          description: "Monthly income amount"
+        budgetAmount:
+          type: number
+          format: float
+          example: 2450
+          description: "Budget amount for the month"
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          example: "2025-08"
+          description: "Month in YYYY-MM format"
+        categoryAllocations:
+          type: array
+          items:
+            type: object
+            required:
+              - categoryId
+              - value
+            properties:
+              categoryId:
+                type: string
+                example: "category123"
+                description: "Category ID"
+              value:
+                type: number
+                format: float
+                example: 1000
+                description: "Allocated amount for this category"
+
+    CopyFinancialPlanningRequestDTO:
+      type: object
+      required:
+        - sourceMonth
+        - targetMonth
+      properties:
+        sourceMonth:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          example: "2025-07"
+          description: "Source month in YYYY-MM format"
+        targetMonth:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          example: "2025-08"
+          description: "Target month in YYYY-MM format"
+        adjustments:
+          type: object
+          properties:
+            monthlyIncome:
+              type: number
+              format: float
+              example: 3800
+              description: "New monthly income amount"
+            budgetAmount:
+              type: number
+              format: float
+              example: 2850
+              description: "New budget amount"
+
+    GetFinancialPlanningRequestDTO:
+      type: object
+      required:
+        - month
+      properties:
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          example: "2025-08"
+          description: "Month in YYYY-MM format"
+
+    UpdateFinancialPlanningRequestDTO:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          example: "planning123"
+          description: "Financial planning ID"
+        monthlyIncome:
+          type: number
+          format: float
+          example: 3800
+          description: "Monthly income amount"
+        budgetAmount:
+          type: number
+          format: float
+          example: 2850
+          description: "Budget amount"
+        categoryAllocations:
+          type: array
+          items:
+            type: object
+            required:
+              - categoryId
+              - value
+            properties:
+              categoryId:
+                type: string
+                example: "category123"
+                description: "Category ID"
+              value:
+                type: number
+                format: float
+                example: 1200
+                description: "Allocated amount for this category"
+
+    DeleteFinancialPlanningRequestDTO:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          example: "planning123"
+          description: "Financial planning ID"
+
+    FinancialPlanningWithCategories:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "planning123"
+          description: "Financial planning ID"
+        monthlyIncome:
+          type: number
+          format: float
+          example: 3500
+          description: "Monthly income amount"
+        budgetAmount:
+          type: number
+          format: float
+          example: 2450
+          description: "Budget amount for the month"
+        allocatedAmount:
+          type: number
+          format: float
+          example: 2400
+          description: "Total allocated amount across categories"
+        month:
+          type: string
+          format: date
+          example: "2025-08-01"
+          description: "Month this plan applies to"
+        categoryAllocations:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                $ref: '#/components/schemas/Category'
+              value:
+                type: number
+                format: float
+                example: 1000
+                description: "Allocated amount for this category"
+              spent:
+                type: number
+                format: float
+                example: 850.75
+                description: "Total amount spent in this category (paid + unpaid)"
+              paidSpent:
+                type: number
+                format: float
+                example: 650.25
+                description: "Amount already paid in this category"
+              unpaidSpent:
+                type: number
+                format: float
+                example: 200.50
+                description: "Amount not yet paid in this category"
+              remaining:
+                type: number
+                format: float
+                example: 149.25
+                description: "Remaining budget for this category"
+              percentUsed:
+                type: number
+                format: float
+                example: 85.08
+                description: "Percentage of budget used (total)"
+              percentPaidUsed:
+                type: number
+                format: float
+                example: 65.03
+                description: "Percentage of budget used (paid expenses)"
+              percentUnpaidUsed:
+                type: number
+                format: float
+                example: 20.05
+                description: "Percentage of budget used (unpaid expenses)"
+        totalSpent:
+          type: number
+          format: float
+          example: 1850.75
+          description: "Total amount spent across all categories (paid + unpaid)"
+        totalPaidSpent:
+          type: number
+          format: float
+          example: 1450.25
+          description: "Total amount of paid expenses across all categories"
+        totalUnpaidSpent:
+          type: number
+          format: float
+          example: 400.50
+          description: "Total amount of unpaid expenses across all categories"
+        remainingBudget:
+          type: number
+          format: float
+          example: 599.25
+          description: "Remaining budget (budgetAmount - totalSpent)"
+        percentUsed:
+          type: number
+          format: float
+          example: 75.54
+          description: "Percentage of budget used (totalSpent / budgetAmount * 100)"
+        percentPaidUsed:
+          type: number
+          format: float
+          example: 59.19
+          description: "Percentage of budget used for paid expenses"
+        percentUnpaidUsed:
+          type: number
+          format: float
+          example: 16.35
+          description: "Percentage of budget used for unpaid expenses"
+        unallocatedAmount:
+          type: number
+          format: float
+          example: 50
+          description: "Unallocated budget amount (budgetAmount - allocatedAmount)"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-08-01T10:30:00Z"
+          description: "Creation timestamp"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-08-01T10:30:00Z"
+          description: "Last update timestamp"
 
     SuccessResponse:
       type: object

@@ -200,4 +200,19 @@ export class TransactionRepository {
 
     return snapshot.docs.map((doc) => doc.data() as Transaction);
   }
+
+  static async getByDateRange(uid: string, startDate: Date, endDate: Date): Promise<Transaction[]> {
+    const snapshot = await db
+      .collection("users")
+      .doc(uid)
+      .collection("transactions")
+      .where("date", ">=", startDate)
+      .where("date", "<=", endDate)
+      .get();
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Transaction));
+  }
 }

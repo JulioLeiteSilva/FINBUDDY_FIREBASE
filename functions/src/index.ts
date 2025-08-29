@@ -10,8 +10,9 @@ import { categoryRoutes } from "./routes/CategoryRoutes";
 import { transactionRoutes } from "./routes/TransactionRoutes";
 import { creditCardRoutes } from "./routes/CreditCardRoutes";
 import { creditCardInvoiceRoutes } from "./routes/CreditCardInvoiceRoutes";
-import { updateInvoiceStatuses } from "./scheduledTasks/invoiceStatusUpdater";
+import { financialPlanningRoutes } from "./routes/FinancialPlanningRoutes";
 import { createDocsApp } from "./docs/swagger-setup";
+import { updateInvoiceStatuses } from "./scheduledTasks/invoiceStatusUpdater";
 
 export const user = userRoutes;
 export const bank = bankAccountRoutes;
@@ -20,11 +21,7 @@ export const category = categoryRoutes;
 export const transaction = transactionRoutes;
 export const creditCard = creditCardRoutes;
 export const creditCardInvoice = creditCardInvoiceRoutes;
+export const financialPlanning = financialPlanningRoutes;
+export const docs = onRequest(createDocsApp());
 export const scheduledInvoiceStatusUpdate = updateInvoiceStatuses;
 
-export const docs = onRequest(createDocsApp());
-
-export const helloWorld = onRequest((request, response) => {
-  logger.info("Hello logs!", { structuredData: true });
-  response.send("Hello from Firebase!");
-});

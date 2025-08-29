@@ -1,6 +1,7 @@
 import { db } from "../config/firebase";
 import { CategoryRequestDTO } from "../dto/CategoryRequestDTO";
 import { Category } from "../models/Category";
+import { GlobalCategoryService } from "../services/GlobalCategoryService";
 
 export class CategoryRepository {
   private static async validateOwnership(uid: string, categoryId: string) {
@@ -82,5 +83,25 @@ export class CategoryRepository {
       .get();
 
     return doc.exists;
+  }
+
+  static async getByIds(uid: string, categoryIds: string[]): Promise<Category[]> {
+    if (categoryIds.length === 0) return [];
+
+    const allUserCategories = await this.getAll(uid);
+    const defaultCategories = await GlobalCategoryService.getAllDefaultCategories();
+
+    const allCategories = [...allUserCategories, ...defaultCategories];
+    const uniqueCategories = new Map();
+
+    allCategories
+      .filter(category => categoryIds.includes(category.id))
+      .forEach(category => {
+        if (!uniqueCategories.has(category.id)) {
+          uniqueCategories.set(category.id, category);
+        }
+      });
+
+    return allCategories.filter(category => categoryIds.includes(category.id));
   }
 }
