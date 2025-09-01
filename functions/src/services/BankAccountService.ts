@@ -123,7 +123,8 @@ export class BankAccountService {
 
     const [yearStr, monthStr] = validatedData.month.split('-');
     const year = parseInt(yearStr);
-    const month = parseInt(monthStr) - 1;
+    const month = parseInt(monthStr);
+
 
     const requestedDate = dayjs().year(year).month(month).date(1).tz("America/Sao_Paulo");
     const currentDate = dayjs().tz("America/Sao_Paulo");
@@ -216,13 +217,17 @@ export class BankAccountService {
 
   private static async calculateFutureMonthBalances(uid: string, accounts: BankAccount[], requestedDate: dayjs.Dayjs): Promise<BankAccountBalancesByMonthResponseDTO> {
     const currentDate = dayjs().tz("America/Sao_Paulo");
-    const monthsAhead = requestedDate.diff(currentDate, 'month');
 
-    if (monthsAhead <= 0) {
+    const yearDifferenceInMonths = (requestedDate.year() - currentDate.year()) * 12;
+    const monthDifference = requestedDate.month() - currentDate.month();
+
+    const totalMonthDifference = yearDifferenceInMonths + monthDifference;
+
+    if (totalMonthDifference <= 0) {
       throw new Error("Requested month must be in the future");
     }
 
-    if (monthsAhead > 12) {
+    if (totalMonthDifference > 12) {
       throw new Error("Forecast is only available up to 12 months ahead");
     }
 
