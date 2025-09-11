@@ -126,7 +126,7 @@ export class BankAccountService {
     const month = parseInt(monthStr);
 
 
-    const requestedDate = dayjs().year(year).month(month).date(1).tz("America/Sao_Paulo");
+    const requestedDate = dayjs().year(year).month(month-1).date(1).tz("America/Sao_Paulo");
     const currentDate = dayjs().tz("America/Sao_Paulo");
     const monthType = this.determineMonthType(requestedDate, currentDate);
 
