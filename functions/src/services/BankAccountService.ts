@@ -121,12 +121,7 @@ export class BankAccountService {
   static async getBalancesByMonth(uid: string, data: BankAccountBalancesByMonthRequestDTO): Promise<BankAccountBalancesByMonthResponseDTO> {
     const validatedData = this.validateBalancesByMonthData(data);
 
-    const [yearStr, monthStr] = validatedData.month.split('-');
-    const year = parseInt(yearStr);
-    const month = parseInt(monthStr);
-
-
-    const requestedDate = dayjs().year(year).month(month-1).date(1).tz("America/Sao_Paulo");
+    const requestedDate = dayjs.tz(validatedData.month, 'YYYY-MM', "America/Sao_Paulo");
     const currentDate = dayjs().tz("America/Sao_Paulo");
     const monthType = this.determineMonthType(requestedDate, currentDate);
 
@@ -160,13 +155,12 @@ export class BankAccountService {
   }
 
   private static determineMonthType(requestedDate: dayjs.Dayjs, currentDate: dayjs.Dayjs): 'CURRENT' | 'PAST' | 'FUTURE' {
-    const requestedMonth = requestedDate.format('YYYY-MM');
-    const currentMonth = currentDate.format('YYYY-MM');
+  if (requestedDate.isSame(currentDate, 'month')) return 'CURRENT';
 
-    if (requestedMonth === currentMonth) return 'CURRENT';
-    if (requestedDate.isBefore(currentDate, 'month')) return 'PAST';
-    return 'FUTURE';
-  }
+  if (requestedDate.isBefore(currentDate, 'month')) return 'PAST';
+  
+  return 'FUTURE';
+}
 
   private static async calculateCurrentMonthBalances(uid: string, accounts: BankAccount[]): Promise<BankAccountBalancesByMonthResponseDTO> {
     const accountsWithBalances: BankAccountWithBalances[] = [];
