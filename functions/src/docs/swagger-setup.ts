@@ -13,6 +13,7 @@ const loadSwaggerDocument = () => {
         if (fs.existsSync(yamlPath)) {
             const document = YAML.load(yamlPath);
             console.log(`✅ Successfully loaded OpenAPI spec with ${Object.keys(document.paths || {}).length} endpoints`);
+            console.log("SWAGGER URL --> http://localhost:5001/finbuddy-6af05/southamerica-east1/docs/#");
             return document;
         } else {
             throw new Error(`OpenAPI YAML file not found at: ${yamlPath}`);
