@@ -5,7 +5,8 @@ import {
   CopyFinancialPlanningRequestDTO,
   GetFinancialPlanningRequestDTO,
   UpdateFinancialPlanningRequestDTO,
-  DeleteFinancialPlanningRequestDTO
+  DeleteFinancialPlanningRequestDTO,
+  RemoveCategoryAllocationRequestDTO
 } from "../dto/FinancialPlanningDTO";
 import { FinancialPlanningWithCategories } from "../models/FinancialPlanning";
 
@@ -56,6 +57,19 @@ export const financialPlanningRoutes = {
     },
     {
       successMessage: "Planejamento financeiro excluído com sucesso",
+      requireData: true,
+    }
+  ),
+
+  removeCategoryAllocation: createAuthenticatedRoute<RemoveCategoryAllocationRequestDTO, FinancialPlanningWithCategories>(
+    async (request) => {
+      return await FinancialPlanningService.removeCategoryAllocation(
+        request.uid,
+        request.data
+      );
+    },
+    {
+      successMessage: "Categoria removida do planejamento com sucesso",
       requireData: true,
     }
   ),

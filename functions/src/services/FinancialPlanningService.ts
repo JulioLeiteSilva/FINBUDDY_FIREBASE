@@ -9,7 +9,9 @@ import {
     UpdateFinancialPlanningRequestDTO,
     UpdateFinancialPlanningSchema,
     DeleteFinancialPlanningRequestDTO,
-    DeleteFinancialPlanningSchema
+    DeleteFinancialPlanningSchema,
+    RemoveCategoryAllocationRequestDTO,
+    RemoveCategoryAllocationSchema
 } from "../dto/FinancialPlanningDTO";
 import { FinancialPlanning, FinancialPlanningWithCategories } from "../models/FinancialPlanning";
 import { FinancialPlanningRepository } from "../repositories/FinancialPlanningRepository";
@@ -23,8 +25,6 @@ import { FirestoreTimestamp } from "../utils/firestoreUtils";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-
 
 export class FinancialPlanningService {
     private static readonly ERROR_MESSAGES = {
@@ -299,6 +299,36 @@ export class FinancialPlanningService {
             }
             throw error;
         }
+    }
+
+    static async removeCategoryAllocation( uid: string, data: RemoveCategoryAllocationRequestDTO): Promise<FinancialPlanningWithCategories> {
+        const validatedData = RemoveCategoryAllocationSchema.parse(data);
+        
+        const planning = await FinancialPlanningRepository.getById(uid, validatedData.planningId);
+        if (!planning) {
+            throw new Error(this.ERROR_MESSAGES.PLANNING_NOT_FOUND);
+        }
+
+        const allocationToRemove = planning.categoryAllocations.find(a => a.categoryId === validatedData.categoryId);
+        if (!allocationToRemove) {
+            throw new Error(this.ERROR_MESSAGES.CATEGORY_NOT_FOUND);
+        }
+
+        const updatedAllocations = planning.categoryAllocations.filter(a => a.categoryId !== validatedData.categoryId);
+        const updatedAllocatedAmount = updatedAllocations.reduce((total, a) => total + a.value, 0);
+
+        await FinancialPlanningRepository.update(uid, validatedData.planningId, {
+            categoryAllocations: updatedAllocations,
+            allocatedAmount: updatedAllocatedAmount,
+            updatedAt: new Date()
+        });
+
+        const updatedPlanning = await FinancialPlanningRepository.getById(uid, validatedData.planningId);
+        if (!updatedPlanning) {
+            throw new Error(this.ERROR_MESSAGES.PLANNING_NOT_FOUND);
+        }
+
+        return await this.enrichFinancialPlanningWithCategories(uid, updatedPlanning);
     }
 
     private static async enrichFinancialPlanningWithCategories(

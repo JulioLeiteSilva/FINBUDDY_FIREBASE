@@ -60,3 +60,9 @@ export const DeleteFinancialPlanningSchema = z.object({
 
 export type DeleteFinancialPlanningRequestDTO = z.infer<typeof DeleteFinancialPlanningSchema>;
 
+export const RemoveCategoryAllocationSchema = z.object({
+    planningId: z.string({ required_error: "ID do planejamento é obrigatório" }),
+    categoryId: z.string({ required_error: "ID da categoria é obrigatório" }),
+});
+
+export type RemoveCategoryAllocationRequestDTO = z.infer<typeof RemoveCategoryAllocationSchema>;
