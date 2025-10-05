@@ -412,7 +412,7 @@ export class FinancialPlanningService {
                     return t.type === 'EXPENSE';
                 }
 
-                if (typeof t.category === 'string' && category.name === t.category) {
+                if (typeof t.category === 'string' && category.icon === t.category) {
                     return t.type === 'EXPENSE';
                 }
 
