@@ -182,23 +182,37 @@ export class PatrimonialManagementService {
     await PatrimonialManagementRepository.delete(uid, id);
   }
 
-  static async getAllAssets(
+  static async getAll(
     uid: string
-  ): Promise<(AssetItem | TangibleGoodsItem)[]> {
+  ): Promise<Array<(AssetItem & { value?: number }) | TangibleGoodsItem | LiabilityItem>> {
     const items = await PatrimonialManagementRepository.getAll(uid);
 
-    const assets = items.filter((item) => item.category === "Asset");
+    const result: Array<(AssetItem & { value?: number }) | TangibleGoodsItem | LiabilityItem> = [];
 
-    return assets.map((item) => {
-      if ("AssetType" in item) {
-        const asset = item as AssetItem;
-        return {
-          ...asset,
-          value: asset.quantity * asset.avgCost,
-        };
+    for (const item of items) {
+      if (item.category === "Liability") {
+        result.push(item as LiabilityItem);
+        continue;
       }
-      return item as TangibleGoodsItem;
-    });
+
+      // Asset (investimentos, cripto, FIIs, etc)
+      if (item.category === "Asset" && "AssetType" in item) {
+        const asset = item as AssetItem;
+        if (typeof asset.quantity === "number" && typeof asset.avgCost === "number") {
+          result.push({ ...asset, value: asset.quantity * asset.avgCost });
+        } else {
+          result.push({ ...asset });
+        }
+        continue;
+      }
+
+      if (item.category === "Asset" && "type" in item) {
+        result.push(item as TangibleGoodsItem);
+        continue;
+      }
+    }
+
+    return result;
   }
 
   static async createLiability(uid: string, data: CreateLiabilityItemDTO) {

@@ -3129,52 +3129,6 @@ paths:
       security:
         - FirebaseAuth: []
 
-  /patrimonialManagement-createLiability:
-    post:
-      tags:
-        - Patrimonial Management
-      summary: Create liability item
-      description: Cria um item patrimonial do tipo Liability (dívida)
-      operationId: createLiability
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [data]
-              properties:
-                data:
-                  $ref: '#/components/schemas/CreateLiabilityItemDTO'
-            examples:
-              liability_example:
-                summary: Liability example
-                value:
-                  data:
-                    name: "Empréstimo Banco X"
-                    onCreate: "2025-10-01T00:00:00Z"
-                    category: "Liability"
-                    totalDebtAmount: 20000
-                    updatedDebtsAmount: 20000
-                    interestRate: 1.5
-                    term: 24
-                    installmentValue: 900
-      responses:
-        200:
-          description: Dívida criada com sucesso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        400:
-          $ref: '#/components/responses/ValidationError'
-        401:
-          $ref: '#/components/responses/UnauthorizedError'
-        500:
-          $ref: '#/components/responses/InternalServerError'
-      security:
-        - FirebaseAuth: []
-
   /patrimonialManagement-update:
     post:
       tags:
@@ -3271,64 +3225,6 @@ paths:
       security:
         - FirebaseAuth: []
 
-  /patrimonialManagement-getAllLiabilities:
-    post:
-      tags:
-        - Patrimonial Management
-      summary: Get all liabilities
-      description: Retorna todas as dívidas do usuário
-      operationId: getAllLiabilities
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                data:
-                  type: object
-                  description: "Empty data object required for Firebase Functions"
-            examples:
-              empty_request:
-                summary: Empty data request
-                value:
-                  data: {}
-      responses:
-        200:
-          description: Dívidas recuperadas com sucesso
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/LiabilityItem'
-              examples:
-                success:
-                  summary: Liabilities retrieved
-                  value:
-                    message: "Dívidas recuperadas com sucesso"
-                    data:
-                      - id: "liability123"
-                        name: "Empréstimo Banco X"
-                        onCreate: "2025-10-01T00:00:00Z"
-                        category: "Liability"
-                        totalDebtAmount: 20000
-                        updatedDebtsAmount: 20000
-                        interestRate: 1.5
-                        term: 24
-                        installmentValue: 900
-        401:
-          $ref: '#/components/responses/UnauthorizedError'
-        500:
-          $ref: '#/components/responses/InternalServerError'
-      security:
-        - FirebaseAuth: []
-
   /patrimonialManagement-delete:
     post:
       tags:
@@ -3376,13 +3272,13 @@ paths:
       security:
         - FirebaseAuth: []
 
-  /patrimonialManagement-getAllAssets:
+  /patrimonialManagement-getAll:
     post:
       tags:
         - Patrimonial Management
       summary: Get all patrimonial assets
       description: Retorna todos os itens patrimoniais do usuário (assets e bens materiais)
-      operationId: getAllAssets
+      operationId: getAll
       requestBody:
         required: true
         content:
