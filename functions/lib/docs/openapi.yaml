@@ -3129,13 +3129,13 @@ paths:
       security:
         - FirebaseAuth: []
 
-  /patrimonialManagement-createTangibleGoods:
+  /patrimonialManagement-createLiability:
     post:
       tags:
         - Patrimonial Management
-      summary: Create tangible goods item
-      description: Cria um item patrimonial do tipo bem material
-      operationId: createTangibleGoods
+      summary: Create liability item
+      description: Cria um item patrimonial do tipo Liability (dívida)
+      operationId: createLiability
       requestBody:
         required: true
         content:
@@ -3145,22 +3145,23 @@ paths:
               required: [data]
               properties:
                 data:
-                  $ref: '#/components/schemas/CreateTangibleGoodsItemDTO'
+                  $ref: '#/components/schemas/CreateLiabilityItemDTO'
             examples:
-              tangible_example:
-                summary: Tangible good example
+              liability_example:
+                summary: Liability example
                 value:
                   data:
-                    name: "Carro"
-                    onCreate: "2025-10-05T12:00:00Z"
-                    category: "Asset"
-                    type: "Carro"
-                    obersationValue: 48000
-                    initialValue: 50000
-                    description: "Carro novo"
+                    name: "Empréstimo Banco X"
+                    onCreate: "2025-10-01T00:00:00Z"
+                    category: "Liability"
+                    totalDebtAmount: 20000
+                    updatedDebtsAmount: 20000
+                    interestRate: 1.5
+                    term: 24
+                    installmentValue: 900
       responses:
         200:
-          description: Bem material criado com sucesso
+          description: Dívida criada com sucesso
           content:
             application/json:
               schema:
@@ -3216,6 +3217,113 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         404:
           $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /patrimonialManagement-updateLiability:
+    post:
+      tags:
+        - Patrimonial Management
+      summary: Update liability item
+      description: Atualiza um item patrimonial do tipo Liability
+      operationId: updateLiability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/UpdateLiabilityItemDTO'
+            examples:
+              update_liability_example:
+                summary: Update liability example
+                value:
+                  data:
+                    id: "liability123"
+                    name: "Empréstimo Banco X"
+                    onCreate: "2025-10-01T00:00:00Z"
+                    category: "Liability"
+                    totalDebtAmount: 18000
+                    updatedDebtsAmount: 18000
+                    interestRate: 1.4
+                    term: 18
+                    installmentValue: 1000
+      responses:
+        200:
+          description: Dívida atualizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /patrimonialManagement-getAllLiabilities:
+    post:
+      tags:
+        - Patrimonial Management
+      summary: Get all liabilities
+      description: Retorna todas as dívidas do usuário
+      operationId: getAllLiabilities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  description: "Empty data object required for Firebase Functions"
+            examples:
+              empty_request:
+                summary: Empty data request
+                value:
+                  data: {}
+      responses:
+        200:
+          description: Dívidas recuperadas com sucesso
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LiabilityItem'
+              examples:
+                success:
+                  summary: Liabilities retrieved
+                  value:
+                    message: "Dívidas recuperadas com sucesso"
+                    data:
+                      - id: "liability123"
+                        name: "Empréstimo Banco X"
+                        onCreate: "2025-10-01T00:00:00Z"
+                        category: "Liability"
+                        totalDebtAmount: 20000
+                        updatedDebtsAmount: 20000
+                        interestRate: 1.5
+                        term: 24
+                        installmentValue: 900
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
         500:
           $ref: '#/components/responses/InternalServerError'
       security:
@@ -4403,6 +4511,110 @@ components:
           type: string
           example: "Name must be at least 2 characters long"
           description: "Detailed error information"
+
+    LiabilityItem:
+      type: object
+      required:
+        - id
+        - name
+        - onCreate
+        - category
+        - totalDebtAmount
+        - updatedDebtsAmount
+        - interestRate
+        - term
+        - installmentValue
+      properties:
+        id:
+          type: string
+          example: "liability123"
+        name:
+          type: string
+          example: "Empréstimo Banco X"
+        onCreate:
+          type: string
+          format: date-time
+          example: "2025-10-01T00:00:00Z"
+        category:
+          type: string
+          enum:
+            - Liability
+          example: "Liability"
+        totalDebtAmount:
+          type: number
+          example: 20000
+        updatedDebtsAmount:
+          type: number
+          example: 20000
+        interestRate:
+          type: number
+          example: 1.5
+        term:
+          type: integer
+          example: 24
+        installmentValue:
+          type: number
+          example: 900
+
+    CreateLiabilityItemDTO:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - name
+            - category
+            - totalDebtAmount
+            - updatedDebtsAmount
+            - interestRate
+            - term
+            - installmentValue
+          properties:
+            name:
+              type: string
+              example: "Empréstimo Banco X"
+            onCreate:
+              type: string
+              format: date-time
+              example: "2025-10-01T00:00:00Z"
+            category:
+              type: string
+              enum:
+                - Liability
+              example: "Liability"
+            totalDebtAmount:
+              type: number
+              example: 20000
+            updatedDebtsAmount:
+              type: number
+              example: 20000
+            interestRate:
+              type: number
+              example: 1.5
+            term:
+              type: integer
+              example: 24
+            installmentValue:
+              type: number
+              example: 900
+
+    UpdateLiabilityItemDTO:
+      allOf:
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: object
+              required:
+                - id
+              properties:
+                id:
+                  type: string
+                  example: "liability123"
+        - $ref: '#/components/schemas/CreateLiabilityItemDTO'
 
   responses:
     ValidationError:

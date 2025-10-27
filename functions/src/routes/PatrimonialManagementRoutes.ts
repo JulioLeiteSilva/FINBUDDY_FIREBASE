@@ -1,5 +1,5 @@
-import { CreateAssetItemDTO, CreateTangibleGoodsItemDTO, DeletePatrimonialItemDTO, UpdateAssetItemDTO, UpdateTangibleGoodsItemDTO } from "../dto/PatrimonialManagementDTO";
-import { AssetItem, TangibleGoodsItem } from "../models/PatrimonialManagement";
+import { CreateAssetItemDTO, CreateLiabilityItemDTO, CreateTangibleGoodsItemDTO, DeletePatrimonialItemDTO, UpdateAssetItemDTO, UpdateLiabilityItemDTO, UpdateTangibleGoodsItemDTO } from "../dto/PatrimonialManagementDTO";
+import { AssetItem, LiabilityItem, TangibleGoodsItem } from "../models/PatrimonialManagement";
 import { PatrimonialManagementService } from "../services/PatrimonialManagementService";
 import { createAuthenticatedRoute } from "../utils/routeWrapper";
 
@@ -20,6 +20,16 @@ export const patrimonialManagementRoutes = {
     }
   ),
 
+  createLiability: createAuthenticatedRoute<CreateLiabilityItemDTO, LiabilityItem>(
+    async (request) => {
+      return await PatrimonialManagementService.createLiability(request.uid, request.data);
+    },
+    {
+      successMessage: "Dívida criada com sucesso",
+      requireData: true,
+    }
+  ),
+
   update: createAuthenticatedRoute<UpdateAssetItemDTO | UpdateTangibleGoodsItemDTO, AssetItem | TangibleGoodsItem>(
     async (request) => {
       if ("AssetType" in request.data) {
@@ -32,6 +42,16 @@ export const patrimonialManagementRoutes = {
     },
     {
       successMessage: "Item patrimonial atualizado com sucesso",
+      requireData: true,
+    }
+  ),
+
+  updateLiability: createAuthenticatedRoute<UpdateLiabilityItemDTO, LiabilityItem>(
+    async (request) => {
+      return await PatrimonialManagementService.updateLiability(request.uid, request.data);
+    },
+    {
+      successMessage: "Dívida atualizada com sucesso",
       requireData: true,
     }
   ),
@@ -52,6 +72,16 @@ export const patrimonialManagementRoutes = {
     },
     {
       successMessage: "Itens patrimoniais recuperados com sucesso",
+      requireData: false,
+    }
+  ),
+
+  getAllLiabilities: createAuthenticatedRoute<void, LiabilityItem[]>(
+    async (request) => {
+      return await PatrimonialManagementService.getAllLiabilities(request.uid);
+    },
+    {
+      successMessage: "Dívidas recuperadas com sucesso",
       requireData: false,
     }
   ),

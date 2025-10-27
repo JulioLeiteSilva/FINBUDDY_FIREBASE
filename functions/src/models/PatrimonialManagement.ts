@@ -1,3 +1,6 @@
+import { AssetType } from "../enums/AssetType";
+import { TangibleGoodsType } from "../enums/TangibleGoodsType";
+
 export interface PatrimonialItem{
   id: string;
   name: string;
@@ -7,14 +10,14 @@ export interface PatrimonialItem{
 
 export interface AssetItem extends PatrimonialItem{
   category: "Asset";
-  AssetType: string; // Renda fix, acoes, fii, cripto
+  AssetType: AssetType;
   quantity: number;
   avgCost: number;
 }
 
 export interface TangibleGoodsItem extends PatrimonialItem{
   category: "Asset";
-  type: string; // Carro, moto, imovel
+  type: TangibleGoodsType;
   description?: string;
   obersationValue: number;
   initialValue: number;

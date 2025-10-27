@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { AssetType } from "../enums/AssetType";
+import { TangibleGoodsType } from "../enums/TangibleGoodsType";
 
 
 export const PatrimonialItemSchema = z.object({
@@ -9,14 +11,14 @@ export const PatrimonialItemSchema = z.object({
 
 export const AssetItemSchema = PatrimonialItemSchema.extend({
   category: z.literal("Asset"),
-  AssetType: z.string().min(1, "Tipo do ativo é obrigatório"), 
+  AssetType: z.nativeEnum(AssetType), 
   quantity: z.number().min(0, "Quantidade deve ser maior ou igual a zero"),
   avgCost: z.number().min(0, "Custo médio deve ser maior ou igual a zero"),
 });
 
 export const TangibleGoodsItemSchema = PatrimonialItemSchema.extend({
   category: z.literal("Asset"),
-  type: z.string().min(1, "Tipo do bem é obrigatório"), // Ex: "Carro", "Imóvel"
+  type: z.nativeEnum(TangibleGoodsType),
   description: z.string().optional(),
   obersationValue: z.number().min(0, "Valor de observação deve ser maior oui gual a zero"),
   initialValue: z.number().min(0, "Valor inicial deve ser maior ou igual a zero"),
@@ -31,16 +33,24 @@ export const LiabilityItemSchema = PatrimonialItemSchema.extend({
   installmentValue: z.number().min(0, "Valor da parcela deve ser maior ou igual a zero"),
 });
 
+
+
 export const CreateAssetItemSchema = z.union([
   AssetItemSchema,
   TangibleGoodsItemSchema,
 ]);
+
+export const CreateLiabilityItemSchema = LiabilityItemSchema;
 
 export const UpdateAssetItemSchema = AssetItemSchema.extend({
   id: z.string().min(1, "ID é obrigatório"),
 });
 
 export const UpdateTangibleGoodsItemSchema = TangibleGoodsItemSchema.extend({
+  id: z.string().min(1, "ID é obrigatório"),
+});
+
+export const UpdateLiabilityItemSchema = LiabilityItemSchema.extend({
   id: z.string().min(1, "ID é obrigatório"),
 });
 
@@ -51,7 +61,10 @@ export const DeletePatrimonialItemSchema = z.object({
 
 export type CreateAssetItemDTO = z.infer<typeof AssetItemSchema>;
 export type CreateTangibleGoodsItemDTO = z.infer<typeof TangibleGoodsItemSchema>;
-export type CreateLiabilityItemDTO = z.infer<typeof LiabilityItemSchema>;
+export type CreateLiabilityItemDTO = z.infer<typeof CreateLiabilityItemSchema>;
+
 export type UpdateAssetItemDTO = z.infer<typeof UpdateAssetItemSchema>;
 export type UpdateTangibleGoodsItemDTO = z.infer<typeof UpdateTangibleGoodsItemSchema>;
+export type UpdateLiabilityItemDTO = z.infer<typeof UpdateLiabilityItemSchema>;
+
 export type DeletePatrimonialItemDTO = z.infer<typeof DeletePatrimonialItemSchema>;

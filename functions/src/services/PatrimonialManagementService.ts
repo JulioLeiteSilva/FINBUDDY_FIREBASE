@@ -1,18 +1,27 @@
+import z from "zod";
 import { db } from "../config/firebase";
 import {
   AssetItemSchema,
   CreateAssetItemDTO,
+  CreateLiabilityItemDTO,
   CreateTangibleGoodsItemDTO,
+  LiabilityItemSchema,
   TangibleGoodsItemSchema,
   UpdateAssetItemDTO,
+  UpdateLiabilityItemDTO,
+  UpdateLiabilityItemSchema,
   UpdateTangibleGoodsItemDTO,
 } from "../dto/PatrimonialManagementDTO";
+import { AssetType } from "../enums/AssetType";
+import { TangibleGoodsType } from "../enums/TangibleGoodsType";
 import {
   AssetItem,
+  LiabilityItem,
   PatrimonialItem,
   TangibleGoodsItem,
 } from "../models/PatrimonialManagement";
 import { PatrimonialManagementRepository } from "../repositories/PatrimonialManagementRepository";
+import { parseEnumOrThrow } from "../utils/enumTypeValidator";
 
 export class PatrimonialManagementService {
   private static readonly ERROR_MESSAGES = {
@@ -27,6 +36,12 @@ export class PatrimonialManagementService {
   static async createAsset(uid: string, data: CreateAssetItemDTO) {
     const validatedData = AssetItemSchema.parse(data);
 
+    const assetType = parseEnumOrThrow(
+      AssetType,
+      validatedData.AssetType,
+      "AssetType"
+    );
+
     const id = db
       .collection("users")
       .doc(uid)
@@ -34,9 +49,11 @@ export class PatrimonialManagementService {
       .doc().id;
 
     const now = new Date();
+
     const itemToSave = {
       ...validatedData,
       id,
+      AssetType: assetType,
       onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
     };
 
@@ -55,6 +72,12 @@ export class PatrimonialManagementService {
   ) {
     const validatedData = TangibleGoodsItemSchema.parse(data);
 
+    const tangibleGoodsType = parseEnumOrThrow(
+      TangibleGoodsType,
+      validatedData.type,
+      "type"
+    );
+
     const id = db
       .collection("users")
       .doc(uid)
@@ -65,6 +88,7 @@ export class PatrimonialManagementService {
     const itemToSave = {
       ...validatedData,
       id,
+      type: tangibleGoodsType,
       onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
     };
 
@@ -83,7 +107,14 @@ export class PatrimonialManagementService {
       throw new Error(this.ERROR_MESSAGES.ASSET_NOT_FOUND);
     }
 
-    if (data.AssetType !== existing.AssetType) {
+    const existingAsset = existing as AssetItem;
+    const incomingAssetType = parseEnumOrThrow(
+      AssetType,
+      data.AssetType,
+      "AssetType"
+    );
+
+    if (incomingAssetType !== existing.AssetType) {
       throw new Error(this.ERROR_MESSAGES.CHANGE_ASSET_TYPE_NOT_ALLOWED);
     }
 
@@ -92,7 +123,7 @@ export class PatrimonialManagementService {
       name: data.name,
       onCreate: new Date(data.onCreate),
       category: data.category,
-      AssetType: data.AssetType,
+      AssetType: existingAsset.AssetType,
       quantity: data.quantity,
       avgCost: data.avgCost,
     };
@@ -111,8 +142,14 @@ export class PatrimonialManagementService {
     if (!existing || existing.category !== "Asset" || !("type" in existing)) {
       throw new Error(this.ERROR_MESSAGES.TANGIBLE_GOODS_NOT_FOUND);
     }
+    const existingTangible = existing as TangibleGoodsItem;
+    const incomingAssetType = parseEnumOrThrow(
+      TangibleGoodsType,
+      data.type,
+      "type"
+    );
 
-    if (data.type !== existing.type) {
+    if (incomingAssetType !== existing.type) {
       throw new Error(
         this.ERROR_MESSAGES.CHANGE_TANGIBLE_GOODS_TYPE_NOT_ALLOWED
       );
@@ -123,7 +160,7 @@ export class PatrimonialManagementService {
       name: data.name,
       onCreate: new Date(data.onCreate),
       category: data.category,
-      type: data.type,
+      type: existingTangible.type,
       description: data.description,
       obersationValue: data.obersationValue,
       initialValue: data.initialValue,
@@ -162,5 +199,61 @@ export class PatrimonialManagementService {
       }
       return item as TangibleGoodsItem;
     });
+  }
+
+  static async createLiability(uid: string, data: CreateLiabilityItemDTO) {
+    const validatedData = LiabilityItemSchema.parse(data);
+
+    const id = db
+      .collection("users")
+      .doc(uid)
+      .collection("patrimonialItems")
+      .doc().id;
+
+    const now = new Date();
+    const itemToSave: LiabilityItem = {
+      ...validatedData,
+      id,
+      onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
+    };
+
+    await PatrimonialManagementRepository.create(uid, itemToSave);
+
+    return itemToSave;
+  }
+
+  static async updateLiability(uid: string, data: UpdateLiabilityItemDTO) {
+    const existing = await PatrimonialManagementRepository.get(uid, data.id);
+    if (!existing || existing.category !== "Liability") {
+      throw new Error(this.ERROR_MESSAGES.PATRIMONIAL_ITEM_NOT_FOUND);
+    }
+
+    const validated = UpdateLiabilityItemSchema
+      ? UpdateLiabilityItemSchema.parse(data)
+      : LiabilityItemSchema.extend({ id: z.string() }).parse(data);
+
+    const updatedData: Partial<LiabilityItem> = {
+      name: validated.name,
+      onCreate: validated.onCreate ? new Date(validated.onCreate) : new Date(),
+      category: validated.category,
+      totalDebtAmount: validated.totalDebtAmount,
+      updatedDebtsAmount: validated.updatedDebtsAmount,
+      interestRate: validated.interestRate,
+      term: validated.term,
+      installmentValue: validated.installmentValue,
+    };
+
+    await PatrimonialManagementRepository.update(uid, updatedData);
+
+    const updated = await PatrimonialManagementRepository.get(uid, data.id);
+    return updated as LiabilityItem;
+  }
+
+  static async getAllLiabilities(uid: string): Promise<LiabilityItem[]> {
+    const items = await PatrimonialManagementRepository.getAll(uid);
+    const liabilities = items
+      .filter((it) => it.category === "Liability")
+      .map((it) => it as LiabilityItem);
+    return liabilities;
   }
 }
