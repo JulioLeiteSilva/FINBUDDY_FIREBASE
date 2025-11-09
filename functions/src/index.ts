@@ -13,6 +13,7 @@ import { creditCardInvoiceRoutes } from "./routes/CreditCardInvoiceRoutes";
 import { financialPlanningRoutes } from "./routes/FinancialPlanningRoutes";
 import { createDocsApp } from "./docs/swagger-setup";
 import { updateInvoiceStatuses } from "./scheduledTasks/invoiceStatusUpdater";
+import { patrimonialManagementRoutes } from "./routes/PatrimonialManagementRoutes";
 
 export const user = userRoutes;
 export const bank = bankAccountRoutes;
@@ -22,6 +23,7 @@ export const transaction = transactionRoutes;
 export const creditCard = creditCardRoutes;
 export const creditCardInvoice = creditCardInvoiceRoutes;
 export const financialPlanning = financialPlanningRoutes;
+export const patrimonialManagement = patrimonialManagementRoutes;
 export const docs = onRequest(createDocsApp());
 export const scheduledInvoiceStatusUpdate = updateInvoiceStatuses;
 

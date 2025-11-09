@@ -33,6 +33,8 @@ tags:
     description: User-defined category management operations
   - name: Global Category
     description: Global category management operations
+  - name: Patrimonial Management
+    description: Operações de gestão patrimonial (investimentos, bens materiais, etc)
 
 paths:
   /identitytoolkit.googleapis.com/v1/accounts:signInWithPassword:
@@ -2378,7 +2380,7 @@ paths:
                           invoices:
                             type: array
                             items:
-                              $ref: '#/components/schemas/CreditCardInvoice'
+                              $ref: '#/components/schemas/Transaction'
               examples:
                 success:
                   summary: Invoices retrieved
@@ -2386,28 +2388,35 @@ paths:
                     message: "Faturas recuperadas com sucesso"
                     data:
                       invoices:
-                        - id: "invoice123"
-                          status: "OPEN"
-                          total: 3500.50
-                          month: 1
-                          year: 2024
-                          bankAccountId: null
-                        - id: "invoice456"
-                          status: "PAID"
-                          total: 2500.75
-                          month: 12
-                          year: 2023
+                        - id: "transaction123"
+                          name: "Compra Amazon"
+                          category: "Compras Online"
+                          value: 299.90
+                          date: "2024-01-15T00:00:00Z"
+                          type: "INVOICE"
+                          invoiceId: "invoice123"
+                          creditCardId: "card123"
+                          isRecurring: false
+                          isPaid: false
+                          currency: "BRL"
                           bankAccountId: "account123"
-                        - id: "invoice789"
-                          status: "CLOSED"
-                          total: 4200.00
-                          month: 11
-                          year: 2023
-                          bankAccountId: null
+                          primaryTransactionId: null
+                        - id: "transaction456"
+                          name: "Netflix Subscription"
+                          category: "Entretenimento"
+                          value: 45.90
+                          date: "2024-01-15T00:00:00Z"
+                          type: "INVOICE"
+                          invoiceId: "invoice456"
+                          creditCardId: "card123"
+                          isRecurring: true
+                          frequency: "MONTHLY"
+                          isPaid: false
+                          currency: "BRL"
+                          bankAccountId: "account123"
+                          primaryTransactionId: "transaction456"
         401:
           $ref: '#/components/responses/UnauthorizedError'
-        404:
-          $ref: '#/components/responses/NotFoundError'
         500:
           $ref: '#/components/responses/InternalServerError'
       security:
@@ -3071,6 +3080,260 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         404:
           $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /patrimonialManagement-create:
+    post:
+      tags:
+        - Patrimonial Management
+      summary: Create asset item
+      description: Cria um item patrimonial do tipo Asset (investimento, cripto, etc)
+      operationId: createAsset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/CreateAssetItemDTO'
+            examples:
+              asset_example:
+                summary: Asset example
+                value:
+                  data:
+                    name: "Ação XPTO"
+                    onCreate: "2025-10-05T12:00:00Z"
+                    category: "Asset"
+                    AssetType: "Ação"
+                    quantity: 10
+                    avgCost: 100
+      responses:
+        200:
+          description: Asset criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /patrimonialManagement-update:
+    post:
+      tags:
+        - Patrimonial Management
+      summary: Update asset item
+      description: Atualiza um item patrimonial do tipo Asset
+      operationId: updateAsset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/UpdateAssetItemDTO'
+            examples:
+              update_asset_example:
+                summary: Update asset example
+                value:
+                  data:
+                    id: "asset123"
+                    name: "Ação XPTO"
+                    onCreate: "2025-10-05T12:00:00Z"
+                    category: "Asset"
+                    AssetType: "Ação"
+                    quantity: 20
+                    avgCost: 110
+      responses:
+        200:
+          description: Asset atualizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /patrimonialManagement-updateLiability:
+    post:
+      tags:
+        - Patrimonial Management
+      summary: Update liability item
+      description: Atualiza um item patrimonial do tipo Liability
+      operationId: updateLiability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  $ref: '#/components/schemas/UpdateLiabilityItemDTO'
+            examples:
+              update_liability_example:
+                summary: Update liability example
+                value:
+                  data:
+                    id: "liability123"
+                    name: "Empréstimo Banco X"
+                    onCreate: "2025-10-01T00:00:00Z"
+                    category: "Liability"
+                    totalDebtAmount: 18000
+                    updatedDebtsAmount: 18000
+                    interestRate: 1.4
+                    term: 18
+                    installmentValue: 1000
+      responses:
+        200:
+          description: Dívida atualizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /patrimonialManagement-delete:
+    post:
+      tags:
+        - Patrimonial Management
+      summary: Delete patrimonial item
+      description: Exclui um item patrimonial (asset ou tangible good)
+      operationId: deletePatrimonialItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [id]
+                  properties:
+                    id:
+                      type: string
+                      description: "ID do item patrimonial"
+                      example: "asset123"
+            examples:
+              delete_example:
+                summary: Delete patrimonial item
+                value:
+                  data:
+                    id: "asset123"
+      responses:
+        200:
+          description: Item patrimonial excluído com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        400:
+          $ref: '#/components/responses/ValidationError'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        404:
+          $ref: '#/components/responses/NotFoundError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /patrimonialManagement-getAll:
+    post:
+      tags:
+        - Patrimonial Management
+      summary: Get all patrimonial assets
+      description: Retorna todos os itens patrimoniais do usuário (assets e bens materiais)
+      operationId: getAll
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  description: "Empty data object required for Firebase Functions"
+            examples:
+              empty_request:
+                summary: Empty data request
+                value:
+                  data: {}
+      responses:
+        200:
+          description: Itens patrimoniais recuperados com sucesso
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/components/schemas/AssetItem'
+                            - $ref: '#/components/schemas/TangibleGoodsItem'
+              examples:
+                success:
+                  summary: Patrimonial items retrieved
+                  value:
+                    message: "Itens patrimoniais recuperados com sucesso"
+                    data:
+                      - id: "asset123"
+                        name: "Ação XPTO"
+                        onCreate: "2025-10-05T12:00:00Z"
+                        category: "Asset"
+                        AssetType: "Ação"
+                        quantity: 10
+                        avgCost: 100
+                        value: 1000
+                      - id: "tangible123"
+                        name: "Carro"
+                        onCreate: "2025-10-05T12:00:00Z"
+                        category: "Asset"
+                        type: "Carro"
+                        obersationValue: 48000
+                        initialValue: 50000
+                        description: "Carro novo"
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
         500:
           $ref: '#/components/responses/InternalServerError'
       security:
@@ -4145,6 +4408,110 @@ components:
           example: "Name must be at least 2 characters long"
           description: "Detailed error information"
 
+    LiabilityItem:
+      type: object
+      required:
+        - id
+        - name
+        - onCreate
+        - category
+        - totalDebtAmount
+        - updatedDebtsAmount
+        - interestRate
+        - term
+        - installmentValue
+      properties:
+        id:
+          type: string
+          example: "liability123"
+        name:
+          type: string
+          example: "Empréstimo Banco X"
+        onCreate:
+          type: string
+          format: date-time
+          example: "2025-10-01T00:00:00Z"
+        category:
+          type: string
+          enum:
+            - Liability
+          example: "Liability"
+        totalDebtAmount:
+          type: number
+          example: 20000
+        updatedDebtsAmount:
+          type: number
+          example: 20000
+        interestRate:
+          type: number
+          example: 1.5
+        term:
+          type: integer
+          example: 24
+        installmentValue:
+          type: number
+          example: 900
+
+    CreateLiabilityItemDTO:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - name
+            - category
+            - totalDebtAmount
+            - updatedDebtsAmount
+            - interestRate
+            - term
+            - installmentValue
+          properties:
+            name:
+              type: string
+              example: "Empréstimo Banco X"
+            onCreate:
+              type: string
+              format: date-time
+              example: "2025-10-01T00:00:00Z"
+            category:
+              type: string
+              enum:
+                - Liability
+              example: "Liability"
+            totalDebtAmount:
+              type: number
+              example: 20000
+            updatedDebtsAmount:
+              type: number
+              example: 20000
+            interestRate:
+              type: number
+              example: 1.5
+            term:
+              type: integer
+              example: 24
+            installmentValue:
+              type: number
+              example: 900
+
+    UpdateLiabilityItemDTO:
+      allOf:
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: object
+              required:
+                - id
+              properties:
+                id:
+                  type: string
+                  example: "liability123"
+        - $ref: '#/components/schemas/CreateLiabilityItemDTO'
+
   responses:
     ValidationError:
       description: Validation error in request data
@@ -4228,4 +4595,7 @@ components:
         3. Click "Authorize" button and enter: `Bearer <idToken>`
 
         **Example:**
+        ```
+        Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        ```
 
