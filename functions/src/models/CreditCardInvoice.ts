@@ -5,7 +5,7 @@ export interface CreditCardInvoice {
   id: string;
   status: InvoiceStatus;
   total: number;
-  month : number;
-  year : number;
+  month: number;
+  year: number;
   bankAccountId?: string | null;
 }

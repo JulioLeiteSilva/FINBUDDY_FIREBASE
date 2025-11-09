@@ -7,6 +7,12 @@ export interface BankAccount {
   type: AccountType;
   bank: string;
   balance: number;
-  transactions: Transaction[];
   currency: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isActive: boolean;
+}
+
+export interface BankAccountWithTransactions extends BankAccount {
+  transactions: Transaction[];
 }

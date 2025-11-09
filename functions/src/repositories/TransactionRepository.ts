@@ -1,5 +1,4 @@
 import { db } from "../config/firebase";
-
 import { Transaction } from "../models/Transaction";
 
 export class TransactionRepository {
@@ -52,6 +51,7 @@ export class TransactionRepository {
       .doc(transactionId);
     await ref.delete();
   }
+
   static async getAll(uid: string): Promise<Transaction[]> {
     const snapshot = await db
       .collection("users")
@@ -161,6 +161,7 @@ export class TransactionRepository {
 
     return snapshot.docs.map((doc) => doc.data() as Transaction);
   }
+
   static async batchDelete(
     uid: string,
     transactionIds: string[]
@@ -177,5 +178,41 @@ export class TransactionRepository {
     }
 
     await batch.commit();
+  }
+
+  static async getRelatedRecurringTransactions(
+    uid: string,
+    transaction: Transaction
+  ): Promise<Transaction[]> {
+    const snapshot = await db
+      .collection("users")
+      .doc(uid)
+      .collection("transactions")
+      .where("isRecurring", "==", true)
+      .where("name", "==", transaction.name)
+      .where("category", "==", transaction.category)
+      .where("frequency", "==", transaction.frequency)
+      .where("bankAccountId", "==", transaction.bankAccountId)
+      .where("type", "==", transaction.type)
+      .where("startDate", "==", transaction.startDate)
+      .where("endDate", "==", transaction.endDate)
+      .get();
+
+    return snapshot.docs.map((doc) => doc.data() as Transaction);
+  }
+
+  static async getByDateRange(uid: string, startDate: Date, endDate: Date): Promise<Transaction[]> {
+    const snapshot = await db
+      .collection("users")
+      .doc(uid)
+      .collection("transactions")
+      .where("date", ">=", startDate)
+      .where("date", "<=", endDate)
+      .get();
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Transaction));
   }
 }

@@ -2,7 +2,7 @@ import { db } from "../config/firebase";
 import { CreditCardInvoice } from "../models/CreditCardInvoice";
 
 export class CreditCardInvoiceRepository {
-  static async create(uid: string, cardId: string, invoice: CreditCardInvoice) {
+  static async create(uid: string, cardId: string, invoice: CreditCardInvoice): Promise<void> {
     await db
       .collection("users")
       .doc(uid)
@@ -13,12 +13,7 @@ export class CreditCardInvoiceRepository {
       .set(invoice);
   }
 
-  static async update(
-    uid: string,
-    cardId: string,
-    invoiceId: string,
-    data: Partial<CreditCardInvoice>
-  ) {
+  static async update(uid: string, cardId: string, invoiceId: string, data: Partial<CreditCardInvoice>): Promise<void> {
     await db
       .collection("users")
       .doc(uid)
@@ -29,7 +24,7 @@ export class CreditCardInvoiceRepository {
       .update(data);
   }
 
-  static async delete(uid: string, cardId: string, invoiceId: string) {
+  static async delete(uid: string, cardId: string, invoiceId: string): Promise<void> {
     await db
       .collection("users")
       .doc(uid)
@@ -40,10 +35,7 @@ export class CreditCardInvoiceRepository {
       .delete();
   }
 
-  static async getAll(
-    uid: string,
-    cardId: string
-  ): Promise<CreditCardInvoice[]> {
+  static async getAll(uid: string, cardId: string): Promise<CreditCardInvoice[]> {
     const snapshot = await db
       .collection("users")
       .doc(uid)
@@ -54,3 +46,4 @@ export class CreditCardInvoiceRepository {
     return snapshot.docs.map((doc) => doc.data() as CreditCardInvoice);
   }
 }
+

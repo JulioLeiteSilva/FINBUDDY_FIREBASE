@@ -7,6 +7,7 @@ export interface CreditCard {
   closingDay: number;
   dueDate: number;
   limit: number;
+  usedLimit: number;
   bankAccountId: string;
-  
 }
+
