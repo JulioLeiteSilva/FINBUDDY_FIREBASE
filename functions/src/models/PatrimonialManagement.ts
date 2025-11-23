@@ -1,11 +1,18 @@
 import { AssetType } from "../enums/AssetType";
 import { TangibleGoodsType } from "../enums/TangibleGoodsType";
 
+export interface HistoryEntry {
+  id: string;
+  timestamp: Date;
+  changes: AssetItem | TangibleGoodsItem | LiabilityItem;
+}
+
 export interface PatrimonialItem{
   id: string;
   name: string;
   onCreate: Date;
   category: "Asset" | "Liability";
+  history?: HistoryEntry[];
 }
 
 export interface AssetItem extends PatrimonialItem{

@@ -9,6 +9,7 @@ import {
 } from "../dto/PatrimonialManagementDTO";
 import {
   AssetItem,
+  HistoryEntry,
   LiabilityItem,
   TangibleGoodsItem,
 } from "../models/PatrimonialManagement";
@@ -95,6 +96,16 @@ export const patrimonialManagementRoutes = {
     {
       successMessage: "Itens patrimoniais recuperados com sucesso",
       requireData: false,
+    }
+  ),
+  
+  getHistory: createAuthenticatedRoute<DeletePatrimonialItemDTO, HistoryEntry[]>(
+    async (request) => {
+      return await PatrimonialManagementService.getPatrimonialItemHistory(request.uid, request.data.id);
+    },
+    {
+      successMessage: "Histórico do item recuperado com sucesso",
+      requireData: true,
     }
   ),
 };

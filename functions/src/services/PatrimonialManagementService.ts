@@ -16,6 +16,7 @@ import { AssetType } from "../enums/AssetType";
 import { TangibleGoodsType } from "../enums/TangibleGoodsType";
 import {
   AssetItem,
+  HistoryEntry,
   LiabilityItem,
   PatrimonialItem,
   TangibleGoodsItem,
@@ -50,7 +51,7 @@ export class PatrimonialManagementService {
 
     const now = new Date();
 
-    const itemToSave = {
+    const itemToSave: AssetItem = {
       ...validatedData,
       id,
       AssetType: assetType,
@@ -58,6 +59,15 @@ export class PatrimonialManagementService {
     };
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
+    
+    const historyEntry: HistoryEntry = {
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      timestamp: now,
+      changes: itemToSave,
+    };
+
+    await PatrimonialManagementRepository.addHistoryEntry(uid, id, historyEntry);
+
     const value = itemToSave.quantity * itemToSave.avgCost;
 
     return {
@@ -85,7 +95,7 @@ export class PatrimonialManagementService {
       .doc().id;
 
     const now = new Date();
-    const itemToSave = {
+    const itemToSave: TangibleGoodsItem = {
       ...validatedData,
       id,
       type: tangibleGoodsType,
@@ -93,6 +103,13 @@ export class PatrimonialManagementService {
     };
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
+    
+   const historyEntry: HistoryEntry = {
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      timestamp: now,
+      changes: itemToSave,
+    };
+    await PatrimonialManagementRepository.addHistoryEntry(uid, id, historyEntry);
 
     return itemToSave;
   }
@@ -130,7 +147,15 @@ export class PatrimonialManagementService {
 
     await PatrimonialManagementRepository.update(uid, uptadatedData);
 
-    const updated = await PatrimonialManagementRepository.get(uid, data.id);
+    const updated = await PatrimonialManagementRepository.get(uid, data.id) as AssetItem;
+    const now = new Date();
+    const historyEntry: HistoryEntry = {
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      timestamp: now,
+      changes: updated,
+    };
+    await PatrimonialManagementRepository.addHistoryEntry(uid, data.id, historyEntry);
+
     return updated as AssetItem;
   }
 
@@ -168,7 +193,16 @@ export class PatrimonialManagementService {
 
     await PatrimonialManagementRepository.update(uid, updatedData);
 
-    const updated = await PatrimonialManagementRepository.get(uid, data.id);
+    const updated = await PatrimonialManagementRepository.get(uid, data.id) as TangibleGoodsItem;
+
+    const now = new Date();
+    const historyEntry = {
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      timestamp: now,
+      changes: updated,
+    };
+    await PatrimonialManagementRepository.addHistoryEntry(uid, data.id, historyEntry);
+
     return updated as TangibleGoodsItem;
   }
 
@@ -233,6 +267,13 @@ export class PatrimonialManagementService {
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
 
+    const historyEntry = {
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      timestamp: now,
+      changes: itemToSave,
+    };
+    await PatrimonialManagementRepository.addHistoryEntry(uid, id, historyEntry);
+
     return itemToSave;
   }
 
@@ -259,15 +300,28 @@ export class PatrimonialManagementService {
 
     await PatrimonialManagementRepository.update(uid, updatedData);
 
-    const updated = await PatrimonialManagementRepository.get(uid, data.id);
+    const updated = await PatrimonialManagementRepository.get(uid, data.id) as LiabilityItem;
+    const now = new Date();
+    const historyEntry = {
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      timestamp: now,
+      changes: updated,
+    };
+    await PatrimonialManagementRepository.addHistoryEntry(uid, data.id, historyEntry);
+
     return updated as LiabilityItem;
   }
 
-  static async getAllLiabilities(uid: string): Promise<LiabilityItem[]> {
-    const items = await PatrimonialManagementRepository.getAll(uid);
-    const liabilities = items
-      .filter((it) => it.category === "Liability")
-      .map((it) => it as LiabilityItem);
-    return liabilities;
+  static async getPatrimonialItemHistory(uid: string, itemId: string): Promise<HistoryEntry[]> {
+    // garante que o item existe
+    const item = await PatrimonialManagementRepository.get(uid, itemId);
+    if (!item) {
+      throw new Error(this.ERROR_MESSAGES.PATRIMONIAL_ITEM_NOT_FOUND);
+    }
+
+    // busca todo o histórico da subcoleção
+    const history = await PatrimonialManagementRepository.getHistory(uid, itemId);
+
+    return history;
   }
 }
