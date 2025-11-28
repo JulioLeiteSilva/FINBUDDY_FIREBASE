@@ -14,6 +14,7 @@ import { financialPlanningRoutes } from "./routes/FinancialPlanningRoutes";
 import { createDocsApp } from "./docs/swagger-setup";
 import { updateInvoiceStatuses } from "./scheduledTasks/invoiceStatusUpdater";
 import { patrimonialManagementRoutes } from "./routes/PatrimonialManagementRoutes";
+import { simulationRoutes } from "./routes/SimulationRoutes";
 
 export const user = userRoutes;
 export const bank = bankAccountRoutes;
@@ -26,4 +27,5 @@ export const financialPlanning = financialPlanningRoutes;
 export const patrimonialManagement = patrimonialManagementRoutes;
 export const docs = onRequest(createDocsApp());
 export const scheduledInvoiceStatusUpdate = updateInvoiceStatuses;
+export const simulation = simulationRoutes;
 
