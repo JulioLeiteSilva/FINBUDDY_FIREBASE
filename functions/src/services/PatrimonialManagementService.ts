@@ -55,7 +55,7 @@ export class PatrimonialManagementService {
       ...validatedData,
       id,
       AssetType: assetType,
-      onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
+      onCreate: now,
     };
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
@@ -99,7 +99,7 @@ export class PatrimonialManagementService {
       ...validatedData,
       id,
       type: tangibleGoodsType,
-      onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
+      onCreate: now,
     };
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
@@ -138,7 +138,7 @@ export class PatrimonialManagementService {
     const uptadatedData: Partial<AssetItem> = {
       id: data.id,
       name: data.name,
-      onCreate: new Date(data.onCreate),
+      onCreate: new Date(data.onCreate!),
       category: data.category,
       AssetType: existingAsset.AssetType,
       quantity: data.quantity,
@@ -183,7 +183,7 @@ export class PatrimonialManagementService {
     const updatedData: Partial<TangibleGoodsItem> = {
       id: data.id,
       name: data.name,
-      onCreate: new Date(data.onCreate),
+      onCreate: new Date(data.onCreate!),
       category: data.category,
       type: existingTangible.type,
       description: data.description,
@@ -218,14 +218,16 @@ export class PatrimonialManagementService {
 
   static async getAll(
     uid: string
-  ): Promise<Array<(AssetItem & { value?: number }) | TangibleGoodsItem | LiabilityItem>> {
+  ): Promise<Array<(AssetItem & { value?: number; history?: HistoryEntry[] }) | TangibleGoodsItem & {history?: HistoryEntry[]}| LiabilityItem & {history?: HistoryEntry[]}>> {
     const items = await PatrimonialManagementRepository.getAll(uid);
 
-    const result: Array<(AssetItem & { value?: number }) | TangibleGoodsItem | LiabilityItem> = [];
+    const result: Array<(AssetItem & { value?: number; history?: HistoryEntry[] }) | TangibleGoodsItem & {history?: HistoryEntry[]}| LiabilityItem & { history?: HistoryEntry[]}> = [];
 
     for (const item of items) {
       if (item.category === "Liability") {
-        result.push(item as LiabilityItem);
+        var liability = item as LiabilityItem;
+        var history = await PatrimonialManagementService.getPatrimonialItemHistory(uid, item.id);
+        result.push({ ...liability, history });
         continue;
       }
 
@@ -233,15 +235,16 @@ export class PatrimonialManagementService {
       if (item.category === "Asset" && "AssetType" in item) {
         const asset = item as AssetItem;
         if (typeof asset.quantity === "number" && typeof asset.avgCost === "number") {
-          result.push({ ...asset, value: asset.quantity * asset.avgCost });
-        } else {
-          result.push({ ...asset });
+          var history = await PatrimonialManagementService.getPatrimonialItemHistory(uid, asset.id);
+          result.push({ ...asset, value: asset.quantity * asset.avgCost, history });
         }
         continue;
       }
 
       if (item.category === "Asset" && "type" in item) {
-        result.push(item as TangibleGoodsItem);
+        const tangibleGoods = item as TangibleGoodsItem;
+        var history = await PatrimonialManagementService.getPatrimonialItemHistory(uid, item.id);
+        result.push({ ...tangibleGoods, history });
         continue;
       }
     }

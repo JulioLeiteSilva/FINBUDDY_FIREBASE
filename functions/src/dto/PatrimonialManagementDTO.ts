@@ -5,7 +5,7 @@ import { TangibleGoodsType } from "../enums/TangibleGoodsType";
 
 export const PatrimonialItemSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
-  onCreate: z.date().or(z.string()),
+  onCreate: z.date().or(z.string()).optional(),
   category: z.enum(["Asset", "Liability"]),
 });
 
