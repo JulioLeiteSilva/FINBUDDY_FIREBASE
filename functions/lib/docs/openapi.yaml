@@ -35,6 +35,8 @@ tags:
     description: Global category management operations
   - name: Patrimonial Management
     description: Operações de gestão patrimonial (investimentos, bens materiais, etc)
+  - name: Simulation
+    description: Impact simulation sandbox endpoints
 
 paths:
   /identitytoolkit.googleapis.com/v1/accounts:signInWithPassword:
@@ -3332,6 +3334,176 @@ paths:
                         obersationValue: 48000
                         initialValue: 50000
                         description: "Carro novo"
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - FirebaseAuth: []
+
+  /simulation-getSimulationData:
+    post:
+      tags:
+        - Simulation
+      summary: Get simulation data (sandbox)
+      description: |
+        Returns all financial data needed for the impact simulation sandbox.
+        Includes assets, fixed incomes, average incomes, debts, fixed expenses, and average expenses.
+        All calculations are performed on the frontend; this endpoint only aggregates and returns the raw data.
+      operationId: getSimulationData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  description: "Empty data object required for Firebase Functions"
+            examples:
+              empty_request:
+                summary: Empty data request
+                value:
+                  data: {}
+      responses:
+        200:
+          description: Simulation data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Dados da simulação recuperados com sucesso"
+                  data:
+                    type: object
+                    properties:
+                      inputs:
+                        type: object
+                        properties:
+                          assets:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                  example: "Savings Account"
+                                value:
+                                  type: number
+                                  example: 5000
+                                category:
+                                  type: string
+                                  example: "Asset"
+                          fixedIncomes:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                  example: "Salary"
+                                value:
+                                  type: number
+                                  example: 3000
+                                category:
+                                  type: string
+                                  example: "Income"
+                          averageIncomesByCategory:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                category:
+                                  type: string
+                                  example: "Freelance"
+                                averageValue:
+                                  type: number
+                                  example: 800
+                      outputs:
+                        type: object
+                        properties:
+                          debts:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                  example: "Car Loan"
+                                value:
+                                  type: number
+                                  example: 8000
+                                category:
+                                  type: string
+                                  example: "Liability"
+                          fixedExpenses:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                  example: "Rent"
+                                value:
+                                  type: number
+                                  example: 1200
+                                category:
+                                  type: string
+                                  example: "Expense"
+                          averageExpensesByCategory:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                category:
+                                  type: string
+                                  example: "Groceries"
+                                averageValue:
+                                  type: number
+                                  example: 400
+              examples:
+                success:
+                  summary: Simulation data example
+                  value:
+                    message: "Dados da simulação recuperados com sucesso"
+                    data:
+                      inputs:
+                        assets:
+                          - name: "Savings Account"
+                            value: 5000
+                            category: "Asset"
+                          - name: "Car"
+                            value: 20000
+                            category: "Asset"
+                        fixedIncomes:
+                          - name: "Salary"
+                            value: 3000
+                            category: "Income"
+                        averageIncomesByCategory:
+                          - category: "Freelance"
+                            averageValue: 800
+                          - category: "Dividends"
+                            averageValue: 150
+                      outputs:
+                        debts:
+                          - name: "Car Loan"
+                            value: 8000
+                            category: "Liability"
+                        fixedExpenses:
+                          - name: "Rent"
+                            value: 1200
+                            category: "Expense"
+                          - name: "Internet"
+                            value: 100
+                            category: "Expense"
+                        averageExpensesByCategory:
+                          - category: "Groceries"
+                            averageValue: 400
+                          - category: "Transport"
+                            averageValue: 150
         401:
           $ref: '#/components/responses/UnauthorizedError'
         500:
