@@ -28,7 +28,6 @@ export const LiabilityItemSchema = PatrimonialItemSchema.extend({
   category: z.literal("Liability"),
   totalDebtAmount: z.number().min(0, "Valor total da dívida deve ser maior ou igual a zero"),
   updatedDebtsAmount: z.number().min(0, "Valor atualizado da dívida deve ser maior ou igual a zero"),
-  interestRate: z.number().min(0, "Taxa de juros deve ser maior ou igual a zero"),
   term: z.number().min(1, "Prazo deve ser maior ou igual a 1"),
   installmentValue: z.number().min(0, "Valor da parcela deve ser maior ou igual a zero"),
 });

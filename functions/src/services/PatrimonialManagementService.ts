@@ -265,7 +265,7 @@ export class PatrimonialManagementService {
     const itemToSave: LiabilityItem = {
       ...validatedData,
       id,
-      onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
+      onCreate: now,
     };
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
@@ -281,7 +281,7 @@ export class PatrimonialManagementService {
   }
 
   static async updateLiability(uid: string, data: UpdateLiabilityItemDTO) {
-    const existing = await PatrimonialManagementRepository.get(uid, data.id);
+    const existing = await PatrimonialManagementRepository.get(uid, data.id) as LiabilityItem;
     if (!existing || existing.category !== "Liability") {
       throw new Error(this.ERROR_MESSAGES.PATRIMONIAL_ITEM_NOT_FOUND);
     }
@@ -291,12 +291,12 @@ export class PatrimonialManagementService {
       : LiabilityItemSchema.extend({ id: z.string() }).parse(data);
 
     const updatedData: Partial<LiabilityItem> = {
+      id: data.id,
       name: validated.name,
       onCreate: validated.onCreate ? new Date(validated.onCreate) : new Date(),
       category: validated.category,
       totalDebtAmount: validated.totalDebtAmount,
-      updatedDebtsAmount: validated.updatedDebtsAmount,
-      interestRate: validated.interestRate,
+      updatedDebtsAmount: validated.term < existing.term ? existing.updatedDebtsAmount - validated.installmentValue : existing.updatedDebtsAmount,
       term: validated.term,
       installmentValue: validated.installmentValue,
     };

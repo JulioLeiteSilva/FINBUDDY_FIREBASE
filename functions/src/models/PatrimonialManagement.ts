@@ -34,7 +34,6 @@ export interface LiabilityItem extends PatrimonialItem{
   category: "Liability";
   totalDebtAmount: number;
   updatedDebtsAmount: number;
-  interestRate: number;
   term: number;
   installmentValue: number;
 }
