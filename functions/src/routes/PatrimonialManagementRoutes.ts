@@ -91,7 +91,10 @@ export const patrimonialManagementRoutes = {
     (AssetItem | TangibleGoodsItem | LiabilityItem)[]
   >(
     async (request) => {
-      return await PatrimonialManagementService.getAll(request.uid);
+      var xesque = await PatrimonialManagementService.getAll(request.uid)
+      console.log(xesque);
+      
+      return xesque;
     },
     {
       successMessage: "Itens patrimoniais recuperados com sucesso",
