@@ -81,38 +81,10 @@ export class PatrimonialManagementRepository {
 
     if (snapshot.empty) return [];
 
-    return snapshot.docs
-      .map((d) => {
-        const data: any = d.data();
-
-        // normaliza timestamp da entry
-        const ts: any = data.timestamp;
-        const timestamp =
-          ts && typeof ts.toDate === "function"
-            ? ts.toDate()
-            : typeof ts === "string" || typeof ts === "number"
-            ? new Date(ts)
-            : new Date();
-
-        // normaliza timestamp interno do objeto changes.onCreate quando existir
-        const changes: any = data.changes ?? null;
-        if (changes && changes.onCreate) {
-          const oc: any = changes.onCreate;
-          changes.onCreate =
-            oc && typeof oc.toDate === "function"
-              ? oc.toDate()
-              : typeof oc === "string" || typeof oc === "number"
-              ? new Date(oc)
-              : oc;
-        }
-
-        if (!changes) return null; // filtra entradas inválidas
-        return {
-          id: d.id,
-          timestamp,
-          changes,
-        } as HistoryEntry;
-      })
-      .filter((h): h is HistoryEntry => h !== null);
+     return snapshot.docs.map((d) => ({
+      id: d.id,
+      timestamp: d.data().timestamp,
+      changes: d.data().changes,
+    } as HistoryEntry));
   }
 }

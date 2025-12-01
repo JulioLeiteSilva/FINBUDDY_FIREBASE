@@ -23,6 +23,7 @@ import {
 } from "../models/PatrimonialManagement";
 import { PatrimonialManagementRepository } from "../repositories/PatrimonialManagementRepository";
 import { parseEnumOrThrow } from "../utils/enumTypeValidator";
+import { firestoreTimestampToDate } from "../utils/firestoreUtils";
 
 export class PatrimonialManagementService {
   private static readonly ERROR_MESSAGES = {
@@ -32,6 +33,8 @@ export class PatrimonialManagementService {
     CHANGE_TANGIBLE_GOODS_TYPE_NOT_ALLOWED:
       "Não é permitido alterar o tipo do bem material.",
     PATRIMONIAL_ITEM_NOT_FOUND: "Item patrimonial não encontrado.",
+    PATRIMONIAL_DEBT_HAVE_ALREADY_BEEEN_PAID:
+      "A dívida patrimonial já foi totalmente paga.",
   };
 
   static async createAsset(uid: string, data: CreateAssetItemDTO) {
@@ -55,18 +58,23 @@ export class PatrimonialManagementService {
       ...validatedData,
       id,
       AssetType: assetType,
-      onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
+      onCreate: now,
     };
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
-    
+
     const historyEntry: HistoryEntry = {
-      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc()
+        .id,
       timestamp: now,
       changes: itemToSave,
     };
 
-    await PatrimonialManagementRepository.addHistoryEntry(uid, id, historyEntry);
+    await PatrimonialManagementRepository.addHistoryEntry(
+      uid,
+      id,
+      historyEntry
+    );
 
     const value = itemToSave.quantity * itemToSave.avgCost;
 
@@ -99,17 +107,22 @@ export class PatrimonialManagementService {
       ...validatedData,
       id,
       type: tangibleGoodsType,
-      onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
+      onCreate: now,
     };
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
-    
-   const historyEntry: HistoryEntry = {
-      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+
+    const historyEntry: HistoryEntry = {
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc()
+        .id,
       timestamp: now,
       changes: itemToSave,
     };
-    await PatrimonialManagementRepository.addHistoryEntry(uid, id, historyEntry);
+    await PatrimonialManagementRepository.addHistoryEntry(
+      uid,
+      id,
+      historyEntry
+    );
 
     return itemToSave;
   }
@@ -138,7 +151,7 @@ export class PatrimonialManagementService {
     const uptadatedData: Partial<AssetItem> = {
       id: data.id,
       name: data.name,
-      onCreate: new Date(data.onCreate),
+      onCreate: new Date(data.onCreate!),
       category: data.category,
       AssetType: existingAsset.AssetType,
       quantity: data.quantity,
@@ -147,14 +160,22 @@ export class PatrimonialManagementService {
 
     await PatrimonialManagementRepository.update(uid, uptadatedData);
 
-    const updated = await PatrimonialManagementRepository.get(uid, data.id) as AssetItem;
+    const updated = (await PatrimonialManagementRepository.get(
+      uid,
+      data.id
+    )) as AssetItem;
     const now = new Date();
     const historyEntry: HistoryEntry = {
-      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc()
+        .id,
       timestamp: now,
       changes: updated,
     };
-    await PatrimonialManagementRepository.addHistoryEntry(uid, data.id, historyEntry);
+    await PatrimonialManagementRepository.addHistoryEntry(
+      uid,
+      data.id,
+      historyEntry
+    );
 
     return updated as AssetItem;
   }
@@ -183,7 +204,7 @@ export class PatrimonialManagementService {
     const updatedData: Partial<TangibleGoodsItem> = {
       id: data.id,
       name: data.name,
-      onCreate: new Date(data.onCreate),
+      onCreate: new Date(data.onCreate!),
       category: data.category,
       type: existingTangible.type,
       description: data.description,
@@ -193,15 +214,23 @@ export class PatrimonialManagementService {
 
     await PatrimonialManagementRepository.update(uid, updatedData);
 
-    const updated = await PatrimonialManagementRepository.get(uid, data.id) as TangibleGoodsItem;
+    const updated = (await PatrimonialManagementRepository.get(
+      uid,
+      data.id
+    )) as TangibleGoodsItem;
 
     const now = new Date();
     const historyEntry = {
-      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc()
+        .id,
       timestamp: now,
       changes: updated,
     };
-    await PatrimonialManagementRepository.addHistoryEntry(uid, data.id, historyEntry);
+    await PatrimonialManagementRepository.addHistoryEntry(
+      uid,
+      data.id,
+      historyEntry
+    );
 
     return updated as TangibleGoodsItem;
   }
@@ -218,34 +247,75 @@ export class PatrimonialManagementService {
 
   static async getAll(
     uid: string
-  ): Promise<Array<(AssetItem & { value?: number }) | TangibleGoodsItem | LiabilityItem>> {
+  ): Promise<
+    Array<
+      | (AssetItem & { value?: number; history?: HistoryEntry[] })
+      | (TangibleGoodsItem & { history?: HistoryEntry[] })
+      | (LiabilityItem & { history?: HistoryEntry[] })
+    >
+  > {
     const items = await PatrimonialManagementRepository.getAll(uid);
 
-    const result: Array<(AssetItem & { value?: number }) | TangibleGoodsItem | LiabilityItem> = [];
+    const result: Array<
+      | (AssetItem & { value?: number; history?: HistoryEntry[] })
+      | (TangibleGoodsItem & { history?: HistoryEntry[] })
+      | (LiabilityItem & { history?: HistoryEntry[] })
+    > = [];
 
     for (const item of items) {
       if (item.category === "Liability") {
-        result.push(item as LiabilityItem);
+        var liability = item as LiabilityItem;
+
+        // liability.onCreate = firestoreTimestampToDate(liability.onCreate)!;
+
+        var history =
+          await PatrimonialManagementService.getPatrimonialItemHistory(
+            uid,
+            item.id
+          );
+          
+        // history.forEach(entry => entry.timestamp = firestoreTimestampToDate(entry.timestamp)!);
+    
+        result.push({ ...liability, history });
         continue;
       }
 
       // Asset (investimentos, cripto, FIIs, etc)
       if (item.category === "Asset" && "AssetType" in item) {
         const asset = item as AssetItem;
-        if (typeof asset.quantity === "number" && typeof asset.avgCost === "number") {
-          result.push({ ...asset, value: asset.quantity * asset.avgCost });
-        } else {
-          result.push({ ...asset });
+        if (
+          typeof asset.quantity === "number" &&
+          typeof asset.avgCost === "number"
+        ) {
+          // asset.onCreate = firestoreTimestampToDate(asset.onCreate)!;
+          var history =
+            await PatrimonialManagementService.getPatrimonialItemHistory(
+              uid,
+              asset.id
+            );
+          // history.forEach(entry => entry.timestamp = firestoreTimestampToDate(entry.timestamp)!);
+          result.push({
+            ...asset,
+            value: asset.quantity * asset.avgCost,
+            history,
+          });
         }
         continue;
       }
 
       if (item.category === "Asset" && "type" in item) {
-        result.push(item as TangibleGoodsItem);
+        const tangibleGoods = item as TangibleGoodsItem;
+        // tangibleGoods.onCreate = firestoreTimestampToDate(tangibleGoods.onCreate)!;
+        var history =
+          await PatrimonialManagementService.getPatrimonialItemHistory(
+            uid,
+            item.id
+          );
+          // history.forEach(entry => entry.timestamp = firestoreTimestampToDate(entry.timestamp)!);
+        result.push({ ...tangibleGoods, history });
         continue;
       }
     }
-
     return result;
   }
 
@@ -262,23 +332,31 @@ export class PatrimonialManagementService {
     const itemToSave: LiabilityItem = {
       ...validatedData,
       id,
-      onCreate: validatedData.onCreate ? new Date(validatedData.onCreate) : now,
+      onCreate: now,
     };
 
     await PatrimonialManagementRepository.create(uid, itemToSave);
 
     const historyEntry = {
-      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc()
+        .id,
       timestamp: now,
       changes: itemToSave,
     };
-    await PatrimonialManagementRepository.addHistoryEntry(uid, id, historyEntry);
+    await PatrimonialManagementRepository.addHistoryEntry(
+      uid,
+      id,
+      historyEntry
+    );
 
     return itemToSave;
   }
 
   static async updateLiability(uid: string, data: UpdateLiabilityItemDTO) {
-    const existing = await PatrimonialManagementRepository.get(uid, data.id);
+    const existing = (await PatrimonialManagementRepository.get(
+      uid,
+      data.id
+    )) as LiabilityItem;
     if (!existing || existing.category !== "Liability") {
       throw new Error(this.ERROR_MESSAGES.PATRIMONIAL_ITEM_NOT_FOUND);
     }
@@ -288,31 +366,51 @@ export class PatrimonialManagementService {
       : LiabilityItemSchema.extend({ id: z.string() }).parse(data);
 
     const updatedData: Partial<LiabilityItem> = {
+      id: data.id,
       name: validated.name,
-      onCreate: validated.onCreate ? new Date(validated.onCreate) : new Date(),
+      onCreate: existing.onCreate,
       category: validated.category,
       totalDebtAmount: validated.totalDebtAmount,
-      updatedDebtsAmount: validated.updatedDebtsAmount,
-      interestRate: validated.interestRate,
-      term: validated.term,
+      updatedDebtsAmount:
+        validated.term < existing.term
+          ? existing.updatedDebtsAmount - validated.installmentValue
+          : existing.updatedDebtsAmount,
+      term: validated.term < existing.term ? validated.term : existing.term,
       installmentValue: validated.installmentValue,
     };
-
+    if (updatedData.term! < 0 || updatedData.updatedDebtsAmount! < 0) {
+      updatedData.term = 0;
+      updatedData.updatedDebtsAmount = 0;
+      throw new Error(
+        this.ERROR_MESSAGES.PATRIMONIAL_DEBT_HAVE_ALREADY_BEEEN_PAID
+      );
+    }
     await PatrimonialManagementRepository.update(uid, updatedData);
 
-    const updated = await PatrimonialManagementRepository.get(uid, data.id) as LiabilityItem;
+    const updated = (await PatrimonialManagementRepository.get(
+      uid,
+      data.id
+    )) as LiabilityItem;
     const now = new Date();
     const historyEntry = {
-      id: db.collection("users").doc(uid).collection("patrimonialItems").doc().id,
+      id: db.collection("users").doc(uid).collection("patrimonialItems").doc()
+        .id,
       timestamp: now,
       changes: updated,
     };
-    await PatrimonialManagementRepository.addHistoryEntry(uid, data.id, historyEntry);
+    await PatrimonialManagementRepository.addHistoryEntry(
+      uid,
+      data.id,
+      historyEntry
+    );
 
     return updated as LiabilityItem;
   }
 
-  static async getPatrimonialItemHistory(uid: string, itemId: string): Promise<HistoryEntry[]> {
+  static async getPatrimonialItemHistory(
+    uid: string,
+    itemId: string
+  ): Promise<HistoryEntry[]> {
     // garante que o item existe
     const item = await PatrimonialManagementRepository.get(uid, itemId);
     if (!item) {
@@ -320,7 +418,10 @@ export class PatrimonialManagementService {
     }
 
     // busca todo o histórico da subcoleção
-    const history = await PatrimonialManagementRepository.getHistory(uid, itemId);
+    const history = await PatrimonialManagementRepository.getHistory(
+      uid,
+      itemId
+    );
 
     return history;
   }
