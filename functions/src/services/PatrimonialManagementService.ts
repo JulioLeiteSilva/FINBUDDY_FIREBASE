@@ -32,6 +32,7 @@ export class PatrimonialManagementService {
     CHANGE_TANGIBLE_GOODS_TYPE_NOT_ALLOWED:
       "Não é permitido alterar o tipo do bem material.",
     PATRIMONIAL_ITEM_NOT_FOUND: "Item patrimonial não encontrado.",
+    PATRIMONIAL_DEBT_HAVE_ALREADY_BEEEN_PAID: "A dívida patrimonial já foi totalmente paga.",
   };
 
   static async createAsset(uid: string, data: CreateAssetItemDTO) {
@@ -293,14 +294,18 @@ export class PatrimonialManagementService {
     const updatedData: Partial<LiabilityItem> = {
       id: data.id,
       name: validated.name,
-      onCreate: validated.onCreate ? new Date(validated.onCreate) : new Date(),
+      onCreate: existing.onCreate,
       category: validated.category,
       totalDebtAmount: validated.totalDebtAmount,
       updatedDebtsAmount: validated.term < existing.term ? existing.updatedDebtsAmount - validated.installmentValue : existing.updatedDebtsAmount,
-      term: validated.term,
+      term: validated.term < existing.term ? validated.term : existing.term,
       installmentValue: validated.installmentValue,
     };
-
+    if(updatedData.term! < 0 || updatedData.updatedDebtsAmount! < 0){
+      updatedData.term = 0;
+      updatedData.updatedDebtsAmount = 0;
+      throw new Error(this.ERROR_MESSAGES.PATRIMONIAL_DEBT_HAVE_ALREADY_BEEEN_PAID);
+    }
     await PatrimonialManagementRepository.update(uid, updatedData);
 
     const updated = await PatrimonialManagementRepository.get(uid, data.id) as LiabilityItem;
